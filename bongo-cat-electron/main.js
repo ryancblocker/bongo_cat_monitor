@@ -30,6 +30,7 @@ let extrasMonitor;
 let configServer;
 let lastSystemStats = { cpu: 0, memory: 0 };
 let lastTypingStats = { wpm: 0, isActive: false };
+let focusState = { active: false, endsAt: 0, min: 0 };  // mirrored from the board's EVT:focus lines
 
 // Auto-connect state
 let connecting = false;
@@ -264,6 +265,12 @@ function setupEventForwarding() {
     // brightness slider on the board's settings screen
     const m = /^EVT:bright=(\d+)/.exec(data);
     if (m) settingsManager.set('brightness', Math.min(255, Math.max(10, parseInt(m[1], 10))));
+    // level + focus sessions (the board keeps the timer and the level)
+    const lv = /^EVT:(?:level=|focus=done\|level=)(\d+)/.exec(data);
+    if (lv) settingsManager.set('catLevel', Math.max(1, parseInt(lv[1], 10)));
+    const fs = /^EVT:focus=start\|min=(\d+)\|left=(\d+)/.exec(data);
+    if (fs) focusState = { active: true, endsAt: Date.now() + parseInt(fs[2], 10) * 1000, min: parseInt(fs[1], 10) };
+    if (/^EVT:focus=(stop|done)/.test(data)) focusState = { active: false, endsAt: 0, min: 0 };
   });
 }
 
@@ -295,7 +302,7 @@ async function sendExtras() {
 function configState() {
   const s = settingsManager.getAllSettings();
   const pick = {};
-  for (const k of ['style', 'coat', 'catName', 'brightness', 'cycleSec', 'showWeatherCard', 'showPcCard',
+  for (const k of ['style', 'coat', 'catName', 'focusMin', 'brightness', 'cycleSec', 'showWeatherCard', 'showPcCard',
     'timeFormat', 'sleepTimeout', 'weatherLocation', 'placeName', 'tempUnit', 'showCpuTemp', 'showGpu', 'startAtLogin']) pick[k] = s[k];
   const ex = extrasMonitor ? extrasMonitor.getStatus() : {};
   return {
@@ -306,11 +313,19 @@ function configState() {
       weatherError: ex.weatherError || '',
       sensors: ex.hw ? ex.hw.source : 'none',
       platform: process.platform,
+      level: settingsManager.get('catLevel', 1),
+      focus: { active: focusState.active, leftSec: focusState.active ? Math.max(0, Math.round((focusState.endsAt - Date.now()) / 1000)) : 0, min: focusState.min },
     },
   };
 }
 
 async function applyChanges(changes) {
+  // focus: {focus: minutes} starts a session on the board, {focus: 0} stops it
+  if (changes && 'focus' in changes && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
+    const min = Math.max(0, Math.min(180, Math.round(Number(changes.focus) || 0)));
+    await esp32SerialManager.sendCommand(`FOCUS:${min}`);
+    await new Promise(r => setTimeout(r, 150));  // let the board answer with EVT:focus=...
+  }
   const clean = boardSettings.validate(changes);
   if (!Object.keys(clean).length) return configState();
   settingsManager.updateSettings(clean);

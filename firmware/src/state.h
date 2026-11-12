@@ -11,6 +11,14 @@ struct Settings {          // persisted in NVS ("bongo")
   uint8_t cards = 3;       // bit 0 weather card, bit 1 PC card
   bool h24 = false;
   uint8_t sleepMin = 5;    // minutes without typing before the cat dozes off
+  uint8_t focusMin = 25;   // focus session length (OPTIONS screen / phone)
+};
+
+// Focus timer: finish a session and the cat levels up.
+struct Focus {
+  bool active = false;
+  uint32_t startMs = 0, durMs = 0;
+  uint32_t leftSec(uint32_t now) const { return active && now - startMs < durMs ? (durMs - (now - startMs) + 999) / 1000 : 0; }
 };
 
 struct Weather {
@@ -44,6 +52,9 @@ extern Settings settings;
 extern Weather weather;
 extern PcStats pc;
 extern Clock clk;
+extern Focus focus;
+extern uint16_t catLevel;        // persisted separately in NVS ("lvl"), survives settings changes
+extern uint32_t levelUpUntil;    // millis() until which the "grew to level N" box shows
 extern char configUrl[96];     // phone config page, from the PC ("" = app not running)
 extern uint32_t lastPcMsg;     // millis() of the last line from the PC
 

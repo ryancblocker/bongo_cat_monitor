@@ -9,6 +9,9 @@ constexpr int CARD_X = 6, CARD_Y = 28, CARD_W = 228, CARD_H = 86;
 constexpr int GEAR_X = 214, GEAR_Y = 3;  // top-left of the 16x16 gear
 // settings screen brightness row: [<] [##########] [>]
 constexpr int BR_Y = 280, BR_MINUS_X = 14, BR_BAR_X = 54, BR_BAR_W = 132, BR_PLUS_X = 196;
+// settings screen focus row: [FOCUS 25 MIN] [START]
+constexpr int FO_Y = 222, FO_H = 36, FO_BTN_X = 156;
+static const uint8_t FOCUS_CHOICES[] = {15, 25, 45, 60};
 
 enum Card : uint8_t { CARD_WEATHER = 0, CARD_PC = 1 };
 

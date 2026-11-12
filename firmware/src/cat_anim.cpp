@@ -38,6 +38,12 @@ void CatAnim::poke(uint32_t now) {
   setStage(AWAKE, now);
 }
 
+void CatAnim::celebrate(uint32_t now) {
+  poke(now);
+  pokeEnd = now + 4000;
+  mood = 100;
+}
+
 void CatAnim::update(uint32_t now, float dt, uint8_t sleepMin, uint32_t lastPcMsg) {
   nowMs = now;
   // safety: no typing command for 2 s -> paws stop; PC silent for 5 s -> drift off by ourselves
@@ -108,7 +114,10 @@ int CatAnim::bob() const {
 }
 
 CatLayer CatAnim::face() const {
-  if (nowMs < yawnEnd) return L_FACE_YAWN;
+  if (nowMs < yawnEnd) {  // open slowly, hold wide, close: 1.6 s
+    uint32_t left = yawnEnd - nowMs;
+    return (left > 1300 || left < 300) ? L_FACE_YAWN_HALF : L_FACE_YAWN;
+  }
   if (stage >= DROWSY) return L_FACE_SLEEPY;
   if (blinking) return L_FACE_BLINK;
   if (nowMs < pokeEnd || (streakOn && typingNow)) return L_FACE_HAPPY;

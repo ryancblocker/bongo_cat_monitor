@@ -138,6 +138,21 @@ EAR_R = min((p for p in _body_line if p[0] > 95), key=lambda p: p[1])   # small 
 FACE_C = ((EYE_L[0] + EYE_R[0]) / 2, (EYE_L[1] + EYE_R[1]) / 2)
 
 
+def fit_table():
+    """least-squares straight line through the original table edge (HD coordinates)"""
+    g64 = classify(load_8bit(EIGHT["desk"]))
+    at64 = lambda x, y: g64[y][x] if 0 <= x < 64 and 0 <= y < 64 else ""
+    edge = [(2 * x + 1, 2 * y + 1) for y in range(64) for x in range(64)
+            if g64[y][x] == "line" and not any(at64(x + dx, y + dy) == "grey" for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2))]
+    xs = [q[0] for q in edge]; ys = [q[1] for q in edge]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    a = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+    return a, my - a * mx
+
+
+TABLE = fit_table()
+
+
 # ------------------------------------------------------------------ painting
 def fur_color(coat, x, y, grid):
     """base / shade / highlight + coat pattern for a fur pixel"""
@@ -197,6 +212,8 @@ def paint_fur_layer(name, coat, inner_ears=False, paws=False):
                     p[x, y] = fur_color(coat, x, y, grid) + (255,)
             elif k == "grey":
                 p[x, y] = RAW[name].getpixel((x, y))
+    if name.startswith("body"):
+        extend_behind_desk(p, c)
     if inner_ears:
         twitch = name == "body_twitch"
         for tip in ((EAR_L, EAR_R) if not twitch else (EAR_L,)):
@@ -207,6 +224,37 @@ def paint_fur_layer(name, coat, inner_ears=False, paws=False):
                     if 0 <= x < N and grid[y][x] == "fur" and all(at(grid, x + dx, y + dy) == "fur" for dx, dy in ((1, 0), (-1, 0), (0, -1))):
                         p[x, y] = C(c["ear"]) + (255,)
     return im
+
+
+def table_y(x):
+    a, b = TABLE
+    return int(round(a * x + b))
+
+
+def extend_behind_desk(p, c):
+    """Where the body's bottom edge sits just above the (straight) table edge, carry the fur
+    down behind the desk. Otherwise the 2 px breathing bob shows sky under the cat."""
+    shade = C(c["shade"]) + (255,)
+    line = C(c["line"]) + (255,)
+    filled = set()
+    for x in range(N):
+        ys = [y for y in range(N) if p[x, y][3]]
+        if not ys:
+            continue
+        ylow, target = max(ys), table_y(x) + 4
+        if not (0 < target - ylow <= 12):
+            continue
+        y = ylow  # drop the bottom outline run: the cat continues behind the desk
+        while y > 0 and p[x, y][:3] == line[:3]:
+            p[x, y] = shade
+            filled.add((x, y))
+            y -= 1
+        for y in range(ylow + 1, min(N, target + 1)):
+            p[x, y] = shade
+            filled.add((x, y))
+    for (x, y) in filled:  # keep the side outline on the left/right ends
+        if (x - 1 >= 0 and p[x - 1, y][3] == 0) or (x + 1 < N and p[x + 1, y][3] == 0):
+            p[x, y] = line
 
 
 def paint_face(name, coat, look=0):
@@ -247,18 +295,34 @@ def paint_face(name, coat, look=0):
     return im
 
 
-def paint_yawn(coat):
+def mouth_box():
+    """bounding box of the ω mouth in the stock face (the non-eye outline blobs)"""
+    pts = [q for b in blobs(G["face_stock"], "line") if len(b) < 30 for q in b]
+    xs = [q[0] for q in pts]; ys = [q[1] for q in pts]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+MOUTH = mouth_box()
+
+
+def paint_yawn(coat, wide):
+    """closed eyes + the ω mouth replaced by an open mouth at the same spot.
+    wide=False: opening/closing frame, True: full yawn."""
     im = paint_face("face_sleepy", coat)
-    d = ImageDraw.Draw(im)
-    mx, my = FACE_C[0] + 1, FACE_C[1] + 7
-    # clear the small sleepy mouth, draw an open one
     p = im.load()
-    for y in range(int(my - 4), int(my + 5)):
-        for x in range(int(mx - 5), int(mx + 6)):
-            if p[x, y][3] and not (abs(x - EYE_L[0]) < 4 or abs(x - EYE_R[0]) < 4):
+    x0, y0, x1, y1 = MOUTH
+    for y in range(y0 - 2, y1 + 3):  # remove every bit of the old mouth
+        for x in range(x0 - 2, x1 + 3):
+            if p[x, y][3] and abs(x - EYE_L[0]) > 4 and abs(x - EYE_R[0]) > 4:
                 p[x, y] = (0, 0, 0, 0)
-    d.ellipse([mx - 3, my - 3, mx + 3, my + 4], fill=C("7A2B3A") + (255,), outline=C(COAT[coat]["line"]) + (255,))
-    d.point([(mx, my + 2), (mx - 1, my + 2), (mx + 1, my + 2)], fill=PINK + (255,))
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2 + 1
+    rx, ry = (3, 2) if not wide else (4, 5)
+    d = ImageDraw.Draw(im)
+    line = C("D7D7E2" if coat in ("black", "siamese") else COAT[coat]["line"]) + (255,)
+    d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=C("7A2B3A") + (255,), outline=line)
+    if wide:  # tongue
+        d.line([(cx - 2, cy + ry - 2), (cx + 2, cy + ry - 2)], fill=PINK + (255,))
+        d.point([(cx - 1, cy + ry - 3), (cx, cy + ry - 3), (cx + 1, cy + ry - 3)], fill=PINK + (255,))
     return im
 
 
@@ -298,8 +362,7 @@ def desk():
     ys = [2 * y + 1 for _, y in edge]
     n = len(xs)
     mx, my = sum(xs) / n, sum(ys) / n
-    a = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
-    b = my - a * mx
+    a, b = TABLE
 
     im = Image.new("RGBA", (N, N))
     p = im.load()
@@ -325,7 +388,6 @@ def desk():
         for dx in (0, 1):
             for dy in (0, 1):
                 p[2 * x + dx, 2 * y + dy] = col + (255,)
-    print("table edge: y = %.3f x + %.1f, keyboard %d px" % (a, b, len(kb)))
     return im
 
 
@@ -344,14 +406,43 @@ def hearts(frame):
 
 
 def fx(name):
-    """impact lines + zzz: Scale2x of the originals, recoloured to match"""
-    im = RAW[name].copy()
+    """impact lines: Scale2x of the originals"""
+    return RAW[name].copy()
+
+
+ZS = [["####", "..#.", ".#..", "####"],
+      ["#####", "...#.", "..#..", ".#...", "#####"],
+      ["######", "....#.", "...#..", "..#...", ".#....", "######"]]
+
+
+def zzz(frame):
+    """three small z's drifting up from behind the head: white with an ink outline so
+    they read on any sky or coat"""
+    im = Image.new("RGBA", (N, N))
+    p = im.load()
+    # rise from between the ears, clear of the sun/moon (which sit behind the right ear)
+    bx, by = EAR_L[0] + 8, EAR_L[1] + 2
+    letters = set()
+    for j, z in enumerate(ZS):
+        ox, oy = bx + j * 7, by - j * 6 - frame * 2
+        for y, row in enumerate(z):
+            for x, ch in enumerate(row):
+                if ch == "#":
+                    letters.add((ox + x, oy + y))
+    for (x, y) in letters:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                q = (x + dx, y + dy)
+                if q not in letters:
+                    p[q] = C("202838") + (255,)
+    for q in letters:
+        p[q] = C("F8F8F0") + (255,)
     return im
 
 
 # ------------------------------------------------------------------ all layers
 LAYERS = ["body", "body_twitch", "face_stock", "face_happy", "face_blink", "face_sleepy", "face_look_l",
-          "face_look_r", "face_yawn", "desk", "paws_up", "paws_left", "paws_right", "fx_left", "fx_right",
+          "face_look_r", "face_yawn", "face_yawn_half", "desk", "paws_up", "paws_left", "paws_right", "fx_left", "fx_right",
           "fx_zzz0", "fx_zzz1", "fx_zzz2", "fx_heart0", "fx_heart1"]
 
 
@@ -365,12 +456,15 @@ def hd_layers():
             out[f"hd/{coat}/face_{f}"] = paint_face(f"face_{f}", coat)
         out[f"hd/{coat}/face_look_l"] = paint_face("face_stock", coat, look=-1)
         out[f"hd/{coat}/face_look_r"] = paint_face("face_stock", coat, look=1)
-        out[f"hd/{coat}/face_yawn"] = paint_yawn(coat)
+        out[f"hd/{coat}/face_yawn"] = paint_yawn(coat, wide=True)
+        out[f"hd/{coat}/face_yawn_half"] = paint_yawn(coat, wide=False)
         for w in ("up", "left", "right"):
             out[f"hd/{coat}/paws_{w}"] = paint_fur_layer(f"paws_{w}", coat, paws=True)
     out["hd/-/desk"] = d
-    for n in ("fx_left", "fx_right", "fx_zzz0", "fx_zzz1", "fx_zzz2"):
+    for n in ("fx_left", "fx_right"):
         out[f"hd/-/{n}"] = fx(n)
+    for f in range(3):
+        out[f"hd/-/fx_zzz{f}"] = zzz(f)
     out["hd/-/fx_heart0"] = hearts(0)
     out["hd/-/fx_heart1"] = hearts(1)
     return out

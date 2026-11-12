@@ -13,7 +13,7 @@ SRC = os.path.join(ROOT, "firmware", "src")
 PREV = os.path.join(ROOT, "bongo-cat-electron", "renderer", "cats")
 STYLES = ["hd", "8bit"]
 OY = -30        # screen y of sprite row 0, relative to CAT_Y (ear tips land ~26 px into the cat area)
-ZZZ_DROP = 28   # Zzz sit lower than in the original so the card doesn't hide them
+ZZZ_DROP = 0    # the HD Zzz are placed by pixelcat.zzz(); the 8-bit ones keep the original spot
 
 
 def cname(k):
@@ -32,7 +32,7 @@ def export(L, compose):
             continue
         name = key.split("/")[-1]
         p["sx"] = p["x"] * p["scale"]
-        p["sy"] = OY + p["y"] * p["scale"] + (ZZZ_DROP if name.startswith("fx_zzz") else 0)
+        p["sy"] = OY + p["y"] * p["scale"] + (28 if style == "8bit" and name.startswith("fx_zzz") else 0)
         packed[key] = p
         total += len(p["data"]) + 4 * len(p["rows"]) + 3 * len(p["pal565"])
     print("cat assets: %d images, %.0f KB" % (len(packed), total / 1024))
@@ -50,7 +50,7 @@ def export(L, compose):
         def look(style, coat, layer):
             if style == "8bit":
                 # the original has no glance/yawn/heart frames: fall back to close ones
-                layer = {"face_look_l": "face_stock", "face_look_r": "face_stock", "face_yawn": "face_sleepy"}.get(layer, layer)
+                layer = {"face_look_l": "face_stock", "face_look_r": "face_stock", "face_yawn": "face_sleepy", "face_yawn_half": "face_sleepy"}.get(layer, layer)
                 k = f"8bit/-/{layer}"
             else:
                 k = f"hd/{coat}/{layer}" if f"hd/{coat}/{layer}" in packed else f"hd/-/{layer}"

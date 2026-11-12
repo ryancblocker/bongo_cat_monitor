@@ -21,6 +21,7 @@ const RULES = {
     showCpuTemp: v => typeof v === 'boolean' ? v : undefined,
     showGpu: v => typeof v === 'boolean' ? v : undefined,
     startAtLogin: v => typeof v === 'boolean' ? v : undefined,
+    focusMin: v => int(v, 5, 120),
 };
 
 function int(v, lo, hi) {
@@ -57,6 +58,7 @@ function setLine(s) {
         `cards=${cards}`,
         `h24=${s.timeFormat === '24' ? 1 : 0}`,
         `sleep=${int(s.sleepTimeout, 1, 60) ?? 5}`,
+        `focus=${int(s.focusMin, 5, 120) ?? 25}`,
     ].join('|');
 }
 

@@ -232,6 +232,37 @@ static void pcCard(Frame& f, int x, int y) {
   row("WPM", pc.wpm * 100 / 120, v, -1);
 }
 
+static void focusCard(Frame& f, int x, int y, uint32_t now) {
+  uint32_t left = focus.leftSec(now);
+  char buf[24];
+  f.text("FOCUS", x + 12, y + 16, PX8, INK);
+  snprintf(buf, sizeof buf, "Lv%d %s Lv%d", catLevel, RIGHT, catLevel + 1);
+  f.text(buf, x + CARD_W - 12, y + 16, PX8, SUB, AL_R);
+  snprintf(buf, sizeof buf, "%02lu:%02lu", (unsigned long)(left / 60), (unsigned long)(left % 60));
+  f.text(buf, x + CARD_W / 2, y + 40, PX16, INK, AL_C);
+  // progress: an EXP bar that fills as the session goes
+  uint32_t done = focus.durMs ? (now - focus.startMs) * 100 / focus.durMs : 0;
+  int w = CARD_W - 24, fw = ev((w - 4) * (int)min<uint32_t>(done, 100) / 100);
+  f.fill(x + 12, y + 58, w, 8, c565(INK));
+  f.fill(x + 14, y + 60, w - 4, 4, c565(0x485068));
+  f.fill(x + 14, y + 60, fw, 4, c565(0x58A0F0));
+  f.text("EXP", x + 12, y + 74, PX8, SUB);
+  f.text("KEEP GOING!", x + CARD_W - 12, y + 74, PX8, SUB, AL_R);
+}
+
+static void levelUpBox(Frame& f, uint32_t now) {
+  box(f, CARD_X, CARD_Y, CARD_W, CARD_H);
+  char nm[20];
+  strlcpy(nm, settings.name[0] ? settings.name : "YOUR CAT", sizeof nm);
+  upper(nm);
+  f.text(nm, CARD_X + CARD_W / 2, CARD_Y + 22, PX8, INK, AL_C, CARD_W - 24);
+  f.text("GREW TO", CARD_X + CARD_W / 2, CARD_Y + 38, PX8, INK, AL_C);
+  char buf[16];
+  snprintf(buf, sizeof buf, "LEVEL %d!", catLevel);
+  f.text(buf, CARD_X + CARD_W / 2, CARD_Y + 60, PX16, INK, AL_C);
+  if ((now / 450) & 1) f.text("\xE2\x96\xBC", CARD_X + CARD_W - 20, CARD_Y + CARD_H - 12, PX8, INK);
+}
+
 static void card(Frame& f, int which, int x) {
   if (which == CARD_WEATHER) weatherCard(f, x, CARD_Y);
   else pcCard(f, x, CARD_Y);
@@ -250,21 +281,29 @@ void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
   if (cat.fx() != L_COUNT) f.cat(L[cat.fx()]);
   if (cat.fx2() != L_COUNT) f.cat(L[cat.fx2()]);
 
-  // name plate with mood hearts (Tamagotchi style)
-  if (settings.name[0] && f.vis(CAT_Y, 40)) {
-    char nm[17];
+  // name plate: name + level, mood hearts below (Tamagotchi style)
+  if (f.vis(CAT_Y, 40)) {
+    char nm[17], lv[10];
     strlcpy(nm, settings.name, sizeof nm);
     upper(nm);
-    int w = ev(max(f.textWidth(nm, PX8), 4 * 10) + 22);
+    snprintf(lv, sizeof lv, "Lv%d", catLevel);
+    int top = (nm[0] ? f.textWidth(nm, PX8) + 8 : 0) + f.textWidth(lv, PX8);
+    int w = ev(max(top, 4 * 10) + 22);
     int y = CAT_Y + 2;
     box(f, 6, y, w, 36);
-    f.text(nm, 16, y + 13, PX8, INK);
+    if (nm[0]) f.text(nm, 16, y + 13, PX8, INK);
+    f.text(lv, 6 + w - 10, y + 13, PX8, SUB, AL_R);
     int h = cat.hearts();
     for (int i = 0; i < 4; i++) f.text(HEART, 16 + i * 10, y + 25, PX8, i < h ? 0xE84858 : 0xC8D0DC);
   }
 
-  // card (slides when changing), with the blinking "more" arrow
-  if (f.vis(CARD_Y, CARD_H) && v.nCards > 0) {
+  // card: level-up box, focus timer, or the cycling weather / PC cards
+  if (f.vis(CARD_Y, CARD_H) && v.t < levelUpUntil) {
+    levelUpBox(f, v.t);
+  } else if (f.vis(CARD_Y, CARD_H) && focus.active) {
+    box(f, CARD_X, CARD_Y, CARD_W, CARD_H);
+    focusCard(f, CARD_X, CARD_Y, v.t);
+  } else if (f.vis(CARD_Y, CARD_H) && v.nCards > 0) {
     box(f, CARD_X, CARD_Y, CARD_W, CARD_H);
     f.setClip(CARD_X + 6, CARD_Y + 4, CARD_W - 12, CARD_H - 8);
     float e = v.slide * v.slide * (3 - 2 * v.slide);
@@ -306,17 +345,29 @@ void drawSettings(Frame& f, uint32_t t) {
   f.text("BACK", 180, 20, PX8, INK);
 
   if (configUrl[0]) {
-    box(f, 38, 40, 164, 164);
-    f.qr(configUrl, 50, 52, 140);
-    box(f, 6, 208, 228, 50);
-    f.text("SCAN WITH YOUR PHONE", SW / 2, 224, PX8, INK, AL_C);
-    f.text("TO PICK YOUR CAT!", SW / 2, 240, PX8, INK, AL_C);
+    box(f, 50, 40, 140, 140);
+    f.qr(configUrl, 60, 50, 120);
+    box(f, 6, 184, 228, 34);
+    f.text("SCAN TO PICK YOUR CAT!", SW / 2, 201, PX8, INK, AL_C);
   } else {
-    box(f, 6, 90, 228, 76);
-    f.text("OPEN BONGO CAT", SW / 2, 112, PX8, INK, AL_C);
-    f.text("ON YOUR PC. THE", SW / 2, 128, PX8, INK, AL_C);
-    f.text("CODE SHOWS UP HERE.", SW / 2, 144, PX8, INK, AL_C);
+    box(f, 6, 60, 228, 76);
+    f.text("OPEN BONGO CAT", SW / 2, 82, PX8, INK, AL_C);
+    f.text("ON YOUR PC. THE", SW / 2, 98, PX8, INK, AL_C);
+    f.text("CODE SHOWS UP HERE.", SW / 2, 114, PX8, INK, AL_C);
   }
+
+  // focus: [FOCUS 25 MIN] [START] (tap the length to change it)
+  box(f, 6, FO_Y, FO_BTN_X - 8, FO_H);
+  char fm[20];
+  if (focus.active) {
+    uint32_t left = focus.leftSec(t);
+    snprintf(fm, sizeof fm, "FOCUS %02lu:%02lu", (unsigned long)(left / 60), (unsigned long)(left % 60));
+  } else {
+    snprintf(fm, sizeof fm, "FOCUS %dM", settings.focusMin);
+  }
+  f.text(fm, 18, FO_Y + 18, PX8, INK);
+  box(f, FO_BTN_X, FO_Y, SW - 6 - FO_BTN_X, FO_H);
+  f.text(focus.active ? "STOP" : "START", FO_BTN_X + (SW - 6 - FO_BTN_X) / 2, FO_Y + 18, PX8, focus.active ? 0xE84858 : INK, AL_C);
 
   // brightness: [<] [##########] [>]
   box(f, 6, 262, 228, 52);

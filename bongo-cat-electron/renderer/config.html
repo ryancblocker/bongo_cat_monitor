@@ -59,6 +59,10 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
 #toast{position:fixed;left:50%;bottom:16px;transform:translate(-50%,120px);transition:transform .2s steps(4);z-index:9;font-size:10px;padding:10px 14px;white-space:nowrap}
 #toast.show{transform:translate(-50%,0)}
 .err{color:var(--red)}
+.go{width:100%;height:46px;margin-top:10px;border:3px solid var(--ink);border-radius:4px;background:var(--gold);font-size:12px;cursor:pointer}
+.go.stop{background:#fff;color:var(--red)}
+.clock{font-size:28px;line-height:40px;text-align:center;margin:4px 0 0}
+.exp{height:12px;border:3px solid var(--ink);background:#485068;margin-top:8px}.exp i{display:block;height:100%;background:#58a0f0}
 </style>
 </head>
 <body>
@@ -70,6 +74,22 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
 
   <div class="screen" aria-label="Preview of your cat">
     <div class="in"><img id="pv" alt=""><div class="plate" id="plate"></div></div>
+  </div>
+
+  <div class="box mt" id="focusBox">
+    <div class="lbl">FOCUS <span id="lvl">LV 1</span></div>
+    <div id="focusIdle">
+      <div class="seg" style="grid-template-columns:repeat(4,1fr)" id="focusMin">
+        <button data-v="15">15M</button><button data-v="25">25M</button><button data-v="45">45M</button><button data-v="60">60M</button>
+      </div>
+      <button class="go" id="focusStart">&#9654; START</button>
+      <div class="hint">FINISH A SESSION AND YOUR CAT LEVELS UP. TYPING FILLS ITS HEARTS.</div>
+    </div>
+    <div id="focusRun" hidden>
+      <div class="clock" id="focusClock">25:00</div>
+      <div class="exp"><i id="focusBar" style="width:0"></i></div>
+      <button class="go stop" id="focusStop">STOP</button>
+    </div>
   </div>
 
   <div class="box mt menu" role="tablist" aria-label="Settings sections">
@@ -154,6 +174,7 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
 const COATS = [['white', 'WHITE'], ['black', 'BLACK'], ['grey', 'GREY'], ['orange', 'TABBY'],
                ['calico', 'CALICO'], ['tuxedo', 'TUXEDO'], ['siamese', 'SIAMESE'], ['cream', 'CREAM']];
 let S = {};
+let F = { active: false, leftSec: 0, min: 0 }, fAt = 0, level = 1;
 const $ = id => document.getElementById(id);
 const img = (style, coat) => style === '8bit' ? 'cats/8bit.png' : `cats/hd_${coat}.png`;
 
@@ -195,6 +216,10 @@ function apply(state) {
   $('placeHint').className = 'hint' + (st.weatherError ? ' err' : '');
   $('loginRow').style.display = st.platform === 'win32' ? '' : 'none';
   if (st.platform !== 'win32') $('cpuHint').textContent = 'WHEN THE COMPUTER REPORTS IT';
+  level = st.level || 1;
+  F = st.focus || F;
+  fAt = Date.now();
+  $('focusStart').disabled = !st.connected;
   render();
 }
 
@@ -210,8 +235,11 @@ function render() {
   const pv = img(S.style, S.coat);
   if ($('pv').getAttribute('src') !== pv) $('pv').src = pv;
   const hearts = '♥♥♥♡';
-  $('plate').innerHTML = S.catName ? `<b></b><span>${hearts}</span>` : '';
-  if (S.catName) $('plate').firstChild.textContent = S.catName;
+  $('plate').innerHTML = `<b></b><span>${hearts}</span>`;
+  $('plate').firstChild.textContent = (S.catName ? S.catName + '  ' : '') + 'Lv' + level;
+  $('lvl').textContent = 'LV ' + level;
+  seg('focusMin', S.focusMin);
+  renderFocus();
   // coat tiles
   const box = $('coat');
   if (!box.children.length) {
@@ -242,6 +270,19 @@ function render() {
   for (const k of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) sw(k, S[k]);
 }
 
+function renderFocus() {
+  const left = F.active ? Math.max(0, F.leftSec - Math.floor((Date.now() - fAt) / 1000)) : 0;
+  $('focusIdle').hidden = F.active;
+  $('focusRun').hidden = !F.active;
+  if (F.active) {
+    $('focusClock').textContent = String(Math.floor(left / 60)).padStart(2, '0') + ':' + String(left % 60).padStart(2, '0');
+    const total = (F.min || 1) * 60;
+    $('focusBar').style.width = Math.min(100, Math.round((total - left) * 100 / total)) + '%';
+    if (left === 0) setTimeout(load, 1500);  // pick up the level-up
+  }
+}
+setInterval(renderFocus, 1000);
+
 // ---- wiring
 for (const t of document.querySelectorAll('[role=tab]')) {
   t.onclick = () => {
@@ -252,7 +293,9 @@ for (const t of document.querySelectorAll('[role=tab]')) {
   };
 }
 for (const id of ['style', 'timeFormat', 'tempUnit']) for (const b of $(id).children) b.onclick = () => save({ [id]: b.dataset.v });
-for (const id of ['cycleSec', 'sleepTimeout']) for (const b of $(id).children) b.onclick = () => save({ [id]: +b.dataset.v });
+$('focusStart').onclick = () => save({ focus: S.focusMin || 25 });
+$('focusStop').onclick = () => save({ focus: 0 });
+for (const id of ['cycleSec', 'sleepTimeout', 'focusMin']) for (const b of $(id).children) b.onclick = () => save({ [id]: +b.dataset.v });
 for (const id of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) {
   $(id).onclick = () => {
     const next = S[id] === false;

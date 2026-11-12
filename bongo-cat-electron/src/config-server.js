@@ -103,7 +103,7 @@ class ConfigServer {
             if (/^cats\/[a-z0-9_]+\.png$/.test(rest) && req.method === 'GET') {
                 const file = path.join(RENDERER, rest);
                 if (!fs.existsSync(file)) return this.send(res, 404, 'text/plain', 'Not found');
-                res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=3600' });
+                res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-cache' });  // art changes with updates
                 return res.end(fs.readFileSync(file));
             }
             if (rest === 'fonts/PressStart2P-Regular.ttf' && req.method === 'GET') {

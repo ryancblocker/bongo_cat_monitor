@@ -17,6 +17,7 @@ class CatAnim {
   void idleStart(uint32_t now);
   void streak(bool on) { streakOn = on; }
   void poke(uint32_t now);
+  void celebrate(uint32_t now);  // level up: long happy wave with hearts, mood full
   void update(uint32_t now, float dt, uint8_t sleepMin, uint32_t lastPcMsg);
 
   // layers to draw, back to front (L_COUNT = none)

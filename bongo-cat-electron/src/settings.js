@@ -58,6 +58,8 @@ class SettingsManager {
                 showWeatherCard: { type: 'boolean', default: true },
                 showPcCard: { type: 'boolean', default: true },
                 configKey: { type: 'string', default: '' },
+                focusMin: { type: 'number', minimum: 5, maximum: 120, default: 25 },
+                catLevel: { type: 'number', minimum: 1, default: 1 },  // reported by the board
                 esp32Settings: {
                     type: 'object',
                     properties: {
