@@ -107,7 +107,7 @@
 // If colours are inverted (white shows as black) then uncomment one of the next
 // 2 lines try both options, one of the options should correct the inversion.
 
-#define TFT_INVERSION_ON
+#define TFT_INVERSION_OFF  // ESP32-32E USB-C board: ILI9341, not inverted (matches sports-ticker env:cyd)
 // #define TFT_INVERSION_OFF
 
 
@@ -123,7 +123,7 @@
 // driven with a PWM signal or turned OFF/ON then this must be handled by the user
 // sketch. e.g. with digitalWrite(TFT_BL, LOW);
 
- #define TFT_BL   27            // LED back-light control pin
+ #define TFT_BL   21            // LED back-light control pin
  #define TFT_BACKLIGHT_ON HIGH  // Level to turn ON back-light (HIGH or LOW)
 
 
@@ -213,7 +213,7 @@
 #define TFT_CS   15  // Chip select control pin
 #define TFT_DC   2  // Data Command control pin
 #define TFT_RST  -1  // Reset pin (could connect to Arduino RESET pin)
-#define TFT_BL   27  // LED back-light
+#define TFT_BL   21  // LED back-light
 
 #define TOUCH_CS 33     // Chip select pin (T_CS) of touch screen
 
