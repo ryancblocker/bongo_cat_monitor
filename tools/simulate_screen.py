@@ -102,7 +102,7 @@ if __name__ == "__main__":
     base = out[:-4] if out.endswith(".png") else out
     # Worst-case widths: the longest strings each field can produce
     render({"time": "12:59PM", "temp": "100F", "date": "WED 30", "cond": "DRIZZLE",
-            "stats": ["CPU: 100% 100C", "GPU: 100% 100C", "RAM: 100%", "WPM: 188"]}, base + "_typing.png")
+            "stats": ["CPU: 100% 212F", "GPU: 100% 212F", "RAM: 100%", "WPM: 188"]}, base + "_typing.png")
     render({"sleep": True, "time": "9:41PM", "temp": "54F", "date": "THU 12", "cond": "CLOUDY",
-            "stats": ["CPU: 4% 41C", "", "RAM: 52%", "WPM: 0"]}, base + "_sleep_nogpu.png")
+            "stats": ["CPU: 4% 106F", "", "RAM: 52%", "WPM: 0"]}, base + "_sleep_nogpu.png")
     print("wrote", base + "_typing.png", base + "_sleep_nogpu.png")

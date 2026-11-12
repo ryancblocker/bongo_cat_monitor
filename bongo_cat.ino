@@ -78,6 +78,7 @@ int wpm_speed = 0;
 int cpu_temp = -1;   // -1 = unknown (not shown)
 int gpu_usage = -1;
 int gpu_temp = -1;
+char temp_unit = 'C'; // 'C' or 'F', sent by the PC (HW:...,U:F)
 String current_time_str = "00:00";
 bool time_initialized = false;  // Track if we've received time from Python
 
@@ -98,7 +99,7 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
 void refreshCpuLabel() {
     if (!cpu_label) return;
     if (cpu_temp >= 0) {
-        lv_label_set_text_fmt(cpu_label, "CPU: %d%% %dC", cpu_usage, cpu_temp);
+        lv_label_set_text_fmt(cpu_label, "CPU: %d%% %d%c", cpu_usage, cpu_temp, temp_unit);
     } else {
         lv_label_set_text_fmt(cpu_label, "CPU: %d%%", cpu_usage);
     }
@@ -114,7 +115,7 @@ void refreshGpuLabel() {
     }
     char u[8], t[8];
     if (gpu_usage >= 0) snprintf(u, sizeof(u), "%d%%", gpu_usage); else snprintf(u, sizeof(u), "--");
-    if (gpu_temp >= 0)  snprintf(t, sizeof(t), " %dC", gpu_temp);  else t[0] = 0;
+    if (gpu_temp >= 0)  snprintf(t, sizeof(t), " %d%c", gpu_temp, temp_unit);  else t[0] = 0;
     lv_label_set_text_fmt(gpu_label, "GPU: %s%s", u, t);
     lv_obj_clear_flag(gpu_label, LV_OBJ_FLAG_HIDDEN);
     layoutStatRows();
@@ -421,8 +422,9 @@ void handleSerialCommands() {
             wpm_speed = command.substring(4).toInt();
             
         } else if (command.startsWith("HW:")) {
-            // Extras: HW:CPUT:58,GPU:63,GPUT:71   (-1 or missing = unknown)
+            // Extras: HW:CPUT:136,GPU:63,GPUT:160,U:F   (-1 or missing = unknown; U = C or F)
             String hw = command.substring(3);
+            temp_unit = (hw.indexOf("U:F") >= 0) ? 'F' : 'C';
             cpu_temp = parseIntField(hw, "CPUT");
             gpu_usage = parseIntField(hw, "GPU");
             gpu_temp = parseIntField(hw, "GPUT");

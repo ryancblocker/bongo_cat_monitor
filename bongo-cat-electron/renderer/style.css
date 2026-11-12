@@ -462,3 +462,9 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
 }
+/* Ross edition: long readouts (exact serial lines sent to the board) */
+.stat-value.stat-small {
+    font-size: 11px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    word-break: break-all;
+}

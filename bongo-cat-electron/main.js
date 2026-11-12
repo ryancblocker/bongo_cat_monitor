@@ -7,8 +7,11 @@ const SettingsManager = require('./src/settings');
 const ESP32SerialManager = require('./src/serial');
 const SystemMonitor = require('./src/system-monitor');
 const KeyboardMonitor = require('./src/keyboard-monitor');
+const ExtrasMonitor = require('./src/extras-monitor');
 
 const isDev = process.argv.includes('--dev');
+// Launched at Windows login: stay in the tray instead of opening the window
+const startHidden = process.argv.includes('--hidden');
 
 // Keep a global reference of the window object
 let mainWindow;
@@ -21,6 +24,11 @@ let settingsManager;
 let esp32SerialManager;
 let systemMonitor;
 let keyboardMonitor;
+let extrasMonitor;
+
+// Auto-connect state
+let connecting = false;
+let userDisconnected = false; // pressing Disconnect pauses auto-connect until Connect is pressed
 
 // Monitoring state
 let monitoringActive = false;
@@ -53,7 +61,7 @@ function createWindow() {
 
   // Show window when ready to prevent visual flash
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    if (!startHidden) mainWindow.show();
     
     // Open DevTools in development
     if (isDev) {
@@ -66,9 +74,9 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // Handle window close (minimize to tray instead of quit)
+  // Handle window close (keep running in the tray instead of quitting, on every OS)
   mainWindow.on('close', (event) => {
-    if (!isQuitting && process.platform === 'darwin') {
+    if (!isQuitting) {
       event.preventDefault();
       mainWindow.hide();
     }
@@ -142,6 +150,7 @@ function initializeModules() {
     esp32SerialManager = new ESP32SerialManager(eventEmitter);
     systemMonitor = new SystemMonitor(eventEmitter);
     keyboardMonitor = new KeyboardMonitor(eventEmitter);
+    extrasMonitor = new ExtrasMonitor(eventEmitter);
     
     // Set up event forwarding to renderer
     setupEventForwarding();
@@ -158,7 +167,20 @@ function setupEventForwarding() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('connection-change', data);
     }
+    if (data.connected) {
+      syncBoard();
+    }
   });
+
+  eventEmitter.on('extras-stats', (status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('extras-stats', status);
+    }
+  });
+
+  // Extras: temps/GPU every 2 s; clock, date and weather every 15 s
+  setInterval(() => sendExtras(false), 2000);
+  setInterval(() => sendExtras(true), 15000);
   
   // Combined stats handler for ESP32 protocol
   let lastSystemStats = { cpu: 0, memory: 0 };
@@ -221,6 +243,11 @@ function setupEventForwarding() {
       
       // Auto-start as monitoring state
       monitoringActive = true;
+
+      console.log('🚀 Starting extras (temps, GPU, date, weather) and auto-connect...');
+      extrasMonitor.start(settingsManager.getAllSettings());
+      autoConnectTick();
+      setInterval(autoConnectTick, 3000);
       
     } catch (error) {
       console.error('Failed to auto-start monitoring:', error);
@@ -234,6 +261,66 @@ function setupEventForwarding() {
   });
 }
 
+// Send the board everything it needs after (re)connecting
+async function syncBoard() {
+  try {
+    const settings = settingsManager.getAllSettings();
+    await esp32SerialManager.sendDisplaySettings(settings);
+    await esp32SerialManager.sendTimeUpdate();
+    await sendExtras(true);
+  } catch (error) {
+    console.error('Board sync failed:', error);
+  }
+}
+
+async function sendExtras(includeSlow) {
+  if (!extrasMonitor || !esp32SerialManager || !esp32SerialManager.getConnectionStatus().isConnected) return;
+  try {
+    await esp32SerialManager.sendCommand(extrasMonitor.hwCommand());
+    if (includeSlow) {
+      await esp32SerialManager.sendTimeUpdate();
+      await esp32SerialManager.sendCommand(extrasMonitor.dateCommand());
+      await esp32SerialManager.sendCommand(extrasMonitor.weatherCommand());
+    }
+  } catch (error) {
+    console.error('Failed to send extras:', error.message);
+  }
+}
+
+// Find the board and connect without anyone touching the app: tries the last
+// port first, then any USB-serial chip an ESP32 board uses (CH340, CP210x...).
+async function autoConnectTick() {
+  if (connecting || userDisconnected || !esp32SerialManager) return;
+  if (esp32SerialManager.getConnectionStatus().isConnected) return;
+  if (!settingsManager.get('autoConnect', true)) return;
+  connecting = true;
+  try {
+    const ports = await esp32SerialManager.getAvailablePorts();
+    const last = settingsManager.getLastUsedPort();
+    const candidates = ports.filter(p => p.isESP32Likely).map(p => p.path);
+    candidates.sort((a, b) => (b === last) - (a === last));
+    for (const port of candidates) {
+      try {
+        console.log(`🔌 Auto-connect: trying ${port}`);
+        await esp32SerialManager.connectToDevice(port, settingsManager.getESP32Settings());
+        settingsManager.saveLastUsedPort(port);
+        break;
+      } catch (error) {
+        console.log(`Auto-connect: ${port} failed (${error.message})`);
+      }
+    }
+  } finally {
+    connecting = false;
+  }
+}
+
+// Start with Windows (installed app only), hidden in the tray
+function applyLoginItem() {
+  if (!app.isPackaged || process.platform === 'linux') return;
+  const enabled = settingsManager.get('startAtLogin', true);
+  app.setLoginItemSettings({ openAtLogin: enabled, args: ['--hidden'] });
+}
+
 // App event handlers
 app.whenReady().then(() => {
   // Initialize modules first
@@ -242,6 +329,7 @@ app.whenReady().then(() => {
   // Create UI
   createWindow();
   createTray();
+  applyLoginItem();
 
   // Handle app activation (macOS)
   app.on('activate', () => {
@@ -305,6 +393,7 @@ ipcMain.handle('connect-to-device', async (event, port) => {
       throw new Error('Serial manager not initialized');
     }
     
+    userDisconnected = false;
     const esp32Settings = settingsManager.getESP32Settings();
     const result = await esp32SerialManager.connectToDevice(port, esp32Settings);
     
@@ -325,6 +414,7 @@ ipcMain.handle('disconnect-device', async () => {
     if (!esp32SerialManager) {
       throw new Error('Serial manager not initialized');
     }
+    userDisconnected = true;
     return await esp32SerialManager.disconnect();
   } catch (error) {
     console.error('Disconnect device error:', error);
@@ -477,10 +567,13 @@ ipcMain.handle('apply-settings', async (event, settings) => {
       }
     }
     
+    if (extrasMonitor) extrasMonitor.updateSettings(settings);
+
     // Send settings to ESP32 device if connected
     if (esp32SerialManager && esp32SerialManager.isConnected) {
       try {
         await esp32SerialManager.sendDisplaySettings(settings);
+        await sendExtras(true);
         console.log('Settings sent to ESP32 device successfully');
       } catch (error) {
         console.error('Failed to send settings to ESP32:', error);
@@ -504,6 +597,8 @@ ipcMain.handle('save-settings', async (event, settings) => {
     }
     
     const success = settingsManager.updateSettings(settings);
+    if (extrasMonitor) extrasMonitor.updateSettings(settingsManager.getAllSettings());
+    applyLoginItem();
     
     // Apply settings that affect monitoring
     if (settings.updateInterval && systemMonitor && systemMonitor.isActive()) {
@@ -518,7 +613,8 @@ ipcMain.handle('save-settings', async (event, settings) => {
     // Send settings to ESP32 device if connected
     if (esp32SerialManager && esp32SerialManager.isConnected) {
       try {
-        await esp32SerialManager.sendDisplaySettings(settings);
+        await esp32SerialManager.sendDisplaySettings(settingsManager.getAllSettings());
+        await sendExtras(true);
         console.log('Settings saved and sent to ESP32 device successfully');
       } catch (error) {
         console.error('Failed to send settings to ESP32:', error);
@@ -540,6 +636,9 @@ ipcMain.handle('reset-settings', async () => {
     }
     
     const success = settingsManager.resetToDefaults();
+    if (extrasMonitor) extrasMonitor.updateSettings(settingsManager.getAllSettings());
+    applyLoginItem();
+    if (esp32SerialManager && esp32SerialManager.isConnected) await syncBoard();
     return { success };
   } catch (error) {
     console.error('Reset settings error:', error);
@@ -548,6 +647,10 @@ ipcMain.handle('reset-settings', async () => {
 });
 
 
+
+ipcMain.handle('get-extras-status', () => {
+  return extrasMonitor ? extrasMonitor.getStatus() : null;
+});
 
 // Cleanup on app quit
 app.on('before-quit', async () => {
@@ -559,6 +662,8 @@ app.on('before-quit', async () => {
       systemMonitor.stopMonitoring();
     }
     
+    if (extrasMonitor) extrasMonitor.stop();
+
     if (keyboardMonitor && keyboardMonitor.isActive()) {
       await keyboardMonitor.stopMonitoring();
     }

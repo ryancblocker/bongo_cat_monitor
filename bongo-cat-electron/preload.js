@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   applySettings: (settings) => ipcRenderer.invoke('apply-settings', settings),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   resetSettings: () => ipcRenderer.invoke('reset-settings'),
+  getExtrasStatus: () => ipcRenderer.invoke('get-extras-status'),
   
   // Manual WPM testing for fallback mode
 
@@ -40,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onTypingStats: (callback) => ipcRenderer.on('typing-stats', callback),
   onKeyboardFallback: (callback) => ipcRenderer.on('keyboard-fallback', callback),
   onShowSettings: (callback) => ipcRenderer.on('show-settings', callback),
+  onExtrasStats: (callback) => ipcRenderer.on('extras-stats', callback),
 
   // Remove listeners
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)

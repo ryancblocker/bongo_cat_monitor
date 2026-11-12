@@ -18,6 +18,11 @@ const wpmValue = document.getElementById('wpmValue');
 const cpuValue = document.getElementById('cpuValue');
 const ramValue = document.getElementById('ramValue');
 const timeValue = document.getElementById('timeValue');
+const cpuTempValue = document.getElementById('cpuTempValue');
+const gpuValue = document.getElementById('gpuValue');
+const weatherValue = document.getElementById('weatherValue');
+const linesValue = document.getElementById('linesValue');
+const sensorSource = document.getElementById('sensorSource');
 
 // Setting elements
 const showCpu = document.getElementById('showCpu');
@@ -26,6 +31,13 @@ const showWpm = document.getElementById('showWpm');
 const showTime = document.getElementById('showTime');
 const timeFormat = document.getElementById('timeFormat');
 const sleepTimeout = document.getElementById('sleepTimeout');
+const showCpuTemp = document.getElementById('showCpuTemp');
+const showGpu = document.getElementById('showGpu');
+const showDate = document.getElementById('showDate');
+const showWeather = document.getElementById('showWeather');
+const weatherLocation = document.getElementById('weatherLocation');
+const tempUnit = document.getElementById('tempUnit');
+const startAtLogin = document.getElementById('startAtLogin');
 
 // Application state
 let isConnected = false;
@@ -108,6 +120,11 @@ function setupEventListeners() {
     window.electronAPI.onShowSettings(() => {
         showSettings();
     });
+
+    window.electronAPI.onExtrasStats((event, status) => {
+        updateExtras(status);
+    });
+    window.electronAPI.getExtrasStatus().then(s => s && updateExtras(s));
 }
 
 // Refresh available serial ports
@@ -201,6 +218,25 @@ function updateSystemStats(stats) {
     }
 }
 
+// Update extras display (temps, GPU, weather, exact lines sent to the board)
+function updateExtras(status) {
+    const u = status.unit;
+    const conv = c => (c === null || c === undefined) ? null : Math.round(u === 'F' ? c * 9 / 5 + 32 : c);
+    const cpuT = conv(status.hw.cpuTempC);
+    cpuTempValue.textContent = cpuT === null ? 'n/a' : `${cpuT}°${u}`;
+    const gLoad = status.hw.gpuLoad, gT = conv(status.hw.gpuTempC);
+    gpuValue.textContent = (gLoad === null && gT === null) ? 'n/a'
+        : `${gLoad === null ? '--' : Math.round(gLoad) + '%'}${gT === null ? '' : ' ' + gT + '°' + u}`;
+    if (status.weather) {
+        const t = u === 'F' ? status.weather.tempF : (status.weather.tempF - 32) * 5 / 9;
+        weatherValue.textContent = `${Math.round(t)}°${u}${status.place ? ' · ' + status.place : ''}`;
+    } else {
+        weatherValue.textContent = status.weatherError ? `Error: ${status.weatherError}` : 'n/a';
+    }
+    linesValue.textContent = status.lines.join('  ');
+    sensorSource.textContent = `Sensors: ${status.hw.source}`;
+}
+
 // Update typing stats display
 function updateTypingStats(stats) {
 
@@ -221,6 +257,25 @@ function updateTimeDisplay() {
 }
 
 // Settings management
+function readSettingsForm() {
+    const sleep = parseInt(sleepTimeout.value, 10);
+    return {
+        showCpu: showCpu.checked,
+        showRam: showRam.checked,
+        showWpm: showWpm.checked,
+        showTime: showTime.checked,
+        timeFormat: timeFormat.value,
+        sleepTimeout: Number.isFinite(sleep) ? Math.min(60, Math.max(1, sleep)) : 5,
+        showCpuTemp: showCpuTemp.checked,
+        showGpu: showGpu.checked,
+        showDate: showDate.checked,
+        showWeather: showWeather.checked,
+        weatherLocation: weatherLocation.value.trim(),
+        tempUnit: tempUnit.value,
+        startAtLogin: startAtLogin.checked
+    };
+}
+
 function showSettings() {
     settingsModal.classList.add('show');
 }
@@ -238,8 +293,15 @@ async function loadSettings() {
         showRam.checked = settings.showRam !== false; // default true
         showWpm.checked = settings.showWpm !== false; // default true
         showTime.checked = settings.showTime !== false; // default true
-        timeFormat.value = settings.timeFormat || '24'; // default 24-hour
+        timeFormat.value = settings.timeFormat || '12'; // default 12-hour
         sleepTimeout.value = settings.sleepTimeout || 5; // default 5 minutes
+        showCpuTemp.checked = settings.showCpuTemp !== false;
+        showGpu.checked = settings.showGpu !== false;
+        showDate.checked = settings.showDate !== false;
+        showWeather.checked = settings.showWeather !== false;
+        weatherLocation.value = settings.weatherLocation || '';
+        tempUnit.value = settings.tempUnit || 'F';
+        startAtLogin.checked = settings.startAtLogin !== false;
         
     } catch (error) {
         console.error('Failed to load settings:', error);
@@ -264,14 +326,7 @@ async function applyAppSettings() {
         applyBtn.textContent = 'Applying...';
         applyBtn.disabled = true;
         
-        const settings = {
-            showCpu: showCpu.checked,
-            showRam: showRam.checked,
-            showWpm: showWpm.checked,
-            showTime: showTime.checked,
-            timeFormat: timeFormat.value,
-            sleepTimeout: parseInt(sleepTimeout.value)
-        };
+        const settings = readSettingsForm();
         
         console.log('Attempting to apply settings:', settings);
         await window.electronAPI.applySettings(settings);
@@ -307,14 +362,7 @@ async function saveAppSettings() {
         saveBtn.textContent = 'Saving...';
         saveBtn.disabled = true;
         
-        const settings = {
-            showCpu: showCpu.checked,
-            showRam: showRam.checked,
-            showWpm: showWpm.checked,
-            showTime: showTime.checked,
-            timeFormat: timeFormat.value,
-            sleepTimeout: parseInt(sleepTimeout.value)
-        };
+        const settings = readSettingsForm();
         
         await window.electronAPI.saveSettings(settings);
         

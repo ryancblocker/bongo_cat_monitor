@@ -18,7 +18,7 @@ class SettingsManager {
                 },
                 autoConnect: {
                     type: 'boolean',
-                    default: false
+                    default: true
                 },
                 minimizeToTray: {
                     type: 'boolean',
@@ -32,6 +32,21 @@ class SettingsManager {
                     type: 'string',
                     default: ''
                 },
+                // Display (sent to the board)
+                showCpu: { type: 'boolean', default: true },
+                showRam: { type: 'boolean', default: true },
+                showWpm: { type: 'boolean', default: true },
+                showTime: { type: 'boolean', default: true },
+                timeFormat: { type: 'string', enum: ['12', '24'], default: '12' },
+                sleepTimeout: { type: 'number', minimum: 1, maximum: 60, default: 5 },
+                // Extras (Ross edition)
+                showCpuTemp: { type: 'boolean', default: true },
+                showGpu: { type: 'boolean', default: true },
+                showDate: { type: 'boolean', default: true },
+                showWeather: { type: 'boolean', default: true },
+                weatherLocation: { type: 'string', default: '80130' },
+                tempUnit: { type: 'string', enum: ['F', 'C'], default: 'F' },
+                startAtLogin: { type: 'boolean', default: true },
                 esp32Settings: {
                     type: 'object',
                     properties: {

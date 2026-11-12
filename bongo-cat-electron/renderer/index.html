@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';">
     <title>Bongo Cat - ESP32 Companion</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -58,7 +58,24 @@
                         <label>Current Time</label>
                         <span class="stat-value" id="timeValue">--:--</span>
                     </div>
+                    <div class="stat-item">
+                        <label>CPU Temp</label>
+                        <span class="stat-value" id="cpuTempValue">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>GPU</label>
+                        <span class="stat-value" id="gpuValue">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Weather</label>
+                        <span class="stat-value" id="weatherValue">--</span>
+                    </div>
+                    <div class="stat-item">
+                        <label>Sent to screen</label>
+                        <span class="stat-value stat-small" id="linesValue">--</span>
+                    </div>
                 </div>
+                <p class="help-text" id="sensorSource"></p>
             </section>
 
             <!-- Controls Section -->
@@ -109,6 +126,42 @@
                         </div>
                     </div>
                     
+                    <h3>🌡️ Extras</h3>
+                    <div class="settings-section">
+                        <div class="setting-group">
+                            <label for="showCpuTemp">Show CPU Temperature</label>
+                            <input type="checkbox" id="showCpuTemp" checked>
+                        </div>
+                        <div class="setting-group">
+                            <label for="showGpu">Show GPU Usage + Temperature</label>
+                            <input type="checkbox" id="showGpu" checked>
+                        </div>
+                        <div class="setting-group">
+                            <label for="showDate">Show Date</label>
+                            <input type="checkbox" id="showDate" checked>
+                        </div>
+                        <div class="setting-group">
+                            <label for="showWeather">Show Weather</label>
+                            <input type="checkbox" id="showWeather" checked>
+                        </div>
+                        <div class="setting-group">
+                            <label for="weatherLocation">Weather Location</label>
+                            <input type="text" id="weatherLocation" placeholder="80130 or Denver, CO">
+                            <small class="help-text">US ZIP code, or a city like "Denver, CO"</small>
+                        </div>
+                        <div class="setting-group">
+                            <label for="tempUnit">Temperature Units</label>
+                            <select id="tempUnit" class="setting-select">
+                                <option value="F">°F</option>
+                                <option value="C">°C</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label for="startAtLogin">Start with Windows</label>
+                            <input type="checkbox" id="startAtLogin" checked>
+                        </div>
+                    </div>
+
                     <h3>😴 Sleep Settings</h3>
                     <div class="settings-section">
                         <div class="setting-group">

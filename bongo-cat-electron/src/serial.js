@@ -13,7 +13,7 @@ class ESP32SerialManager {
         this.isConnected = false;
         this.currentPortPath = null;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 3;
+        this.maxReconnectAttempts = 0; // main.js auto-connect loop handles reconnecting
         this.reconnectTimer = null;
         
         // Command queue for reliable transmission
@@ -30,6 +30,30 @@ class ESP32SerialManager {
     }
 
     /**
+     * USB-serial chips used on ESP32 boards: CH340 (1a86, the Cheap Yellow
+     * Display), CP210x (10c4), Espressif native USB (303a), FTDI (0403).
+     */
+    static isLikelyESP32(port) {
+        const manufacturer = (port.manufacturer || '').toLowerCase();
+        const vendorId = (port.vendorId || '').toLowerCase();
+        const productId = (port.productId || '').toLowerCase();
+        return ['1a86', '10c4', '303a', '0403'].includes(vendorId) ||
+               manufacturer.includes('espressif') ||
+               manufacturer.includes('silicon labs') ||
+               manufacturer.includes('wch') ||
+               manufacturer.includes('ftdi') ||
+               productId.includes('2303');
+    }
+
+    /**
+     * "HH:MM" in 24-hour time. (toLocaleTimeString with hour12:false gives
+     * "24:05" after midnight in Chromium, which the board would show as 12:05PM.)
+     */
+    static clockString(d = new Date()) {
+        return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+
+    /**
      * Get list of available serial ports
      */
     async getAvailablePorts() {
@@ -42,12 +66,7 @@ class ESP32SerialManager {
                 const productId = (port.productId || '').toLowerCase();
                 const vendorId = (port.vendorId || '').toLowerCase();
                 
-                return manufacturer.includes('espressif') || 
-                       manufacturer.includes('silicon labs') ||
-                       manufacturer.includes('ftdi') ||
-                       productId.includes('2303') ||
-                       vendorId.includes('10c4') ||
-                       vendorId.includes('0403');
+                return ESP32SerialManager.isLikelyESP32(port);
             });
             
             console.log(`Found ${ports.length} total ports, ${esp32Ports.length} likely ESP32 ports`);
@@ -192,11 +211,7 @@ class ESP32SerialManager {
             console.log('Sending initial sync...');
             
             // Send current time
-            const currentTime = new Date().toLocaleTimeString('en-US', { 
-                hour12: false, 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
+            const currentTime = ESP32SerialManager.clockString();
             
             await this.sendCommand(`TIME:${currentTime}`);
             await this.sleep(50);
@@ -393,11 +408,7 @@ class ESP32SerialManager {
      */
     async sendTimeUpdate() {
         try {
-            const currentTime = new Date().toLocaleTimeString('en-US', { 
-                hour12: false, 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
+            const currentTime = ESP32SerialManager.clockString();
             await this.sendCommand(`TIME:${currentTime}`);
         } catch (error) {
             console.error('Failed to send time update:', error);
@@ -480,12 +491,18 @@ class ESP32SerialManager {
     async handleConnectionError(error) {
         console.error('Connection error occurred:', error);
         
+        const wasConnected = this.isConnected;
         this.isConnected = false;
-        this.eventEmitter.emit('connection-change', {
-            connected: false,
-            port: null,
-            error: error.message
-        });
+        const lastPort = this.currentPortPath;
+        await this.cleanup();
+        this.currentPortPath = lastPort;
+        if (wasConnected) {
+            this.eventEmitter.emit('connection-change', {
+                connected: false,
+                port: null,
+                error: error.message
+            });
+        }
 
         // Attempt reconnection if configured
         if (this.reconnectAttempts < this.maxReconnectAttempts && this.currentPortPath) {

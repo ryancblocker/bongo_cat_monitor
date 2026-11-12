@@ -24,7 +24,7 @@ send("TIME_FORMAT:12")
 send("TIME:21:41")
 send("DATE:THU 12")
 send("WX:54F|CLOUDY")
-send("HW:CPUT:58,GPU:63,GPUT:71")
+send("HW:CPUT:136,GPU:63,GPUT:160,U:F")
 end = time.time() + 10
 while time.time() < end:
     send("STATS:CPU:45,RAM:67,WPM:82")
