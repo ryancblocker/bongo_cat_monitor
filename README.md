@@ -53,7 +53,7 @@ That sends sample weather (WMO code 61 = rain, at night) and PC stats, makes the
 
 `tools/pixelcat.py` builds the HD cat from the original sprites in `animations/`: Scale2x, a 1 px outline, shading, then the coat colours and patterns (all in the `COAT` table at the top). Previews land in `tools/out/`. Run it with `--export` to regenerate `firmware/src/cat_assets.cpp` and the phone page's coat previews, then reflash.
 
-## 2. Ross's PC (Windows)
+## 2. PC (Windows)
 
 1. Run `Bongo Cat Setup 2.0.0.exe` (see step 4). It's unsigned, so SmartScreen warns: **More info → Run anyway**.
 2. **Windows Firewall** asks whether Bongo Cat may use the network: tick **Private networks** and **Allow**. That's what lets the phone reach the settings page.
