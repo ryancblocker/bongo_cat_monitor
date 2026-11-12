@@ -1,3 +1,111 @@
+# 🐱 Bongo Cat Monitor: Ross edition
+
+Fork of [vostoklabs/bongo_cat_monitor](https://github.com/vostoklabs/bongo_cat_monitor) for a 2.8" **ESP32-32E (USB-C only) Cheap Yellow Display**, in a portrait stand. On top of the original typing cat, CPU, RAM and WPM, it adds:
+
+- **CPU temperature** and **GPU usage + temperature**
+- **Date** and **weather** (Open-Meteo, no API key; default ZIP 80130)
+- 12-hour clock, °F everywhere (changeable in the app)
+- A desktop app that **finds the board by itself**, reconnects after an unplug, lives in the tray and **starts with Windows**
+
+```
+ 9:41PM        54F      <- clock / outside temp
+ THU 12     CLOUDY      <- date / condition
+ CPU: 23% 136F
+ GPU: 63% 160F          <- hidden if the PC has no GPU reading
+ RAM: 41%
+ WPM: 82
+      (cat)
+```
+
+## 1. Flash the board (from a Mac or PC)
+
+Needs [PlatformIO](https://platformio.org/) (`brew install platformio`). From the repo root, with the board plugged in:
+
+```bash
+pio run -t upload && pio device monitor
+```
+
+`User_Setup.h` is set for this board: ILI9341 panel, not inverted, backlight on **GPIO 21** (the original repo's GPIO 27 leaves this board's screen dark).
+
+Check the board without the desktop app (fills every row with sample data):
+
+```bash
+python3 tools/send_test.py /dev/cu.usbserial-10
+```
+
+Preview the layout without the board (uses the real sprites and LVGL font, after one `pio run`): `python3 tools/simulate_screen.py out.png`
+
+## 2. Ross's PC (Windows)
+
+1. Run `Bongo Cat Setup 1.1.0.exe` (build it with step 4 below). It's unsigned, so Windows SmartScreen will warn you: click **More info → Run anyway**. It installs for the current user and opens.
+2. Plug in the display. The app connects on its own within a few seconds. If Windows doesn't recognise the board, install the **CH340** USB driver (WCH's CH341SER), then replug.
+3. Close the window when you're done. The app keeps running in the tray (bottom-right) and starts with Windows. Right-click the tray icon → **Settings** to change the weather location, units or rows. **Quit** stops it.
+4. **CPU temperature** needs [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases), because Windows doesn't give CPU temps to normal apps:
+   - Unzip and run `LibreHardwareMonitor.exe` **as administrator**.
+   - Options → **Run On Windows Startup**, Options → **Start Minimized**, Options → **Minimize To Tray**.
+   - Options → **Remote Web Server → Run** (port 8085). Bongo Cat reads `http://localhost:8085/data.json`.
+   - Without it, the CPU row shows just the percentage.
+5. **GPU**: NVIDIA cards work with no setup (`nvidia-smi` ships with the driver). AMD/Intel GPUs come from LibreHardwareMonitor (step 4).
+
+The app window shows exactly what it sends to the screen ("Sent to screen") and where the sensor readings come from, which helps when something is blank.
+
+## 3. Test on a Mac
+
+```bash
+cd bongo-cat-electron && npm ci && node node_modules/electron/install.js
+```
+
+```bash
+BONGO_FAKE_HW=1 npm start
+```
+
+`BONGO_FAKE_HW=1` makes up CPU/GPU temps (Macs don't expose them) so every row can be checked. macOS will ask for **Input Monitoring / Accessibility** permission so the cat can see typing. `npm test` runs the sensor-parsing tests (LibreHardwareMonitor and nvidia-smi formats).
+
+If Electron says it "failed to install correctly" (npm 11 skips its download, and its unzip breaks on Node 26), unzip the cached download yourself:
+
+```bash
+cd node_modules/electron && rm -rf dist && mkdir dist && unzip -q ~/Library/Caches/electron/*/electron-v28.3.3-darwin-arm64.zip -d dist && printf 'Electron.app/Contents/MacOS/Electron' > path.txt
+```
+
+## 4. Build the Windows installer (on the Mac)
+
+```bash
+cd bongo-cat-electron && npx electron-builder --win
+```
+
+Output: `bongo-cat-electron/dist/Bongo Cat Setup 1.1.0.exe` (electron-builder downloads its own Wine/NSIS the first time).
+
+## 5. Print the portrait stand
+
+`case/RossBongoStand/RossBongoStand.py` is the sports-ticker stand rotated to portrait, with the USB-C port at the bottom. Run it in Fusion (Utilities → Add-Ins → Scripts and Add-Ins → **+**, add `case/RossBongoStand`, **Run**). It builds the design with a keep-out model of the board, checks for collisions (0), penny-bore clearance and tip-over (about 25° of lean before it tips), and writes STLs to `case/stl/`.
+
+What's different from the ticker stand:
+- Board pins, window, screw bosses and plug bay are the exact ticker measurements rotated 90°, so the board fits the same way.
+- The cavity has an extra **8 mm below the board**, so the 90° USB-C cable can turn into the cable hole, which sits low on the back directly behind the plug.
+- The rails sit higher (the bottom shell screws are where they used to be), so the base is **82 mm** tall instead of 62.
+
+Print (PLA/PETG, 0.2 mm) and lay each STL flat like the ticker: **Pod Front** face down, **Pod Back** open side down (rails up), **Base** upright (tree supports from the build plate only if the penny-bore roofs sag), **Penny Lid** flat with the snap arm up.
+
+Hardware is the same as the ticker: 6× M3 heat-set inserts (4.0 OD × 4 long), 6× M3×8, a low-profile 90° USB-C cable, 40 pennies.
+
+Assembly: plug the 90° cable into the board and point the cable at the back → set the board on the pins in the pod front, USB-C at the bottom → feed the cable out through the hole at the bottom of the pod back and screw the back on → feed the cable through the base tunnel from the front → slide the rails down into the slots until the nub clicks, then bolt from the back → 10 pennies per bore, hook the lid's tabs in and swing it shut.
+
+Outside size: **66 W × 66 D × 152 H mm**, screen tilted 12° back.
+
+## Serial protocol additions
+
+| Command | Example | Notes |
+|---|---|---|
+| `HW:` | `HW:CPUT:136,GPU:63,GPUT:160,U:F` | `-1` = unknown (GPU row hides, CPU temp is left off) |
+| `DATE:` | `DATE:THU 12` | empty hides it |
+| `WX:` | `WX:54F\|CLOUDY` | temperature, then condition; empty hides it |
+
+Every row holds 15 characters (unscii 16 is 16 px wide); the app keeps each field within that.
+
+---
+
+*Original README below.*
+
 # 🐱 Bongo Cat ESP32 - Your Cute Digital Typing Companion
 
 ![Bongo Cat](web%20resources/cat1.png)
