@@ -5,12 +5,8 @@ const connectBtn = document.getElementById('connectBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const connectionInfo = document.getElementById('connectionInfo');
 
-const settingsBtn = document.getElementById('settingsBtn');
-const settingsModal = document.getElementById('settingsModal');
-const closeSettings = document.getElementById('closeSettings');
-const applySettings = document.getElementById('applySettings');
-const saveSettings = document.getElementById('saveSettings');
-const resetSettings = document.getElementById('resetSettings');
+const openConfigBtn = document.getElementById('openConfigBtn');
+const configUrl = document.getElementById('configUrl');
 
 
 // Stat display elements
@@ -24,20 +20,6 @@ const weatherValue = document.getElementById('weatherValue');
 const linesValue = document.getElementById('linesValue');
 const sensorSource = document.getElementById('sensorSource');
 
-// Setting elements
-const showCpu = document.getElementById('showCpu');
-const showRam = document.getElementById('showRam');
-const showWpm = document.getElementById('showWpm');
-const showTime = document.getElementById('showTime');
-const timeFormat = document.getElementById('timeFormat');
-const sleepTimeout = document.getElementById('sleepTimeout');
-const showCpuTemp = document.getElementById('showCpuTemp');
-const showGpu = document.getElementById('showGpu');
-const showDate = document.getElementById('showDate');
-const showWeather = document.getElementById('showWeather');
-const weatherLocation = document.getElementById('weatherLocation');
-const tempUnit = document.getElementById('tempUnit');
-const startAtLogin = document.getElementById('startAtLogin');
 
 // Application state
 let isConnected = false;
@@ -51,8 +33,9 @@ async function initializeApp() {
         
 
         
-        // Load settings
-        await loadSettings();
+        // Phone settings link
+        refreshConfigUrl();
+        setInterval(refreshConfigUrl, 5000);
         
         // Refresh serial ports
         await refreshSerialPorts();
@@ -80,19 +63,7 @@ function setupEventListeners() {
     
 
     
-    // Settings modal
-    settingsBtn.addEventListener('click', showSettings);
-    closeSettings.addEventListener('click', hideSettings);
-    applySettings.addEventListener('click', applyAppSettings);
-    saveSettings.addEventListener('click', saveAppSettings);
-    resetSettings.addEventListener('click', resetAppSettings);
-    
-    // Close modal when clicking outside
-    settingsModal.addEventListener('click', (e) => {
-        if (e.target === settingsModal) {
-            hideSettings();
-        }
-    });
+    openConfigBtn.addEventListener('click', () => window.electronAPI.openConfigPage());
     
     // Electron API event listeners
     window.electronAPI.onConnectionChange((event, data) => {
@@ -118,7 +89,7 @@ function setupEventListeners() {
     });
     
     window.electronAPI.onShowSettings(() => {
-        showSettings();
+        window.electronAPI.openConfigPage();
     });
 
     window.electronAPI.onExtrasStats((event, status) => {
@@ -256,150 +227,11 @@ function updateTimeDisplay() {
     timeValue.textContent = timeString;
 }
 
-// Settings management
-function readSettingsForm() {
-    const sleep = parseInt(sleepTimeout.value, 10);
-    return {
-        showCpu: showCpu.checked,
-        showRam: showRam.checked,
-        showWpm: showWpm.checked,
-        showTime: showTime.checked,
-        timeFormat: timeFormat.value,
-        sleepTimeout: Number.isFinite(sleep) ? Math.min(60, Math.max(1, sleep)) : 5,
-        showCpuTemp: showCpuTemp.checked,
-        showGpu: showGpu.checked,
-        showDate: showDate.checked,
-        showWeather: showWeather.checked,
-        weatherLocation: weatherLocation.value.trim(),
-        tempUnit: tempUnit.value,
-        startAtLogin: startAtLogin.checked
-    };
+// Phone settings link
+async function refreshConfigUrl() {
+    const url = await window.electronAPI.getConfigUrl();
+    configUrl.textContent = url || 'Starting…';
 }
-
-function showSettings() {
-    settingsModal.classList.add('show');
-}
-
-function hideSettings() {
-    settingsModal.classList.remove('show');
-}
-
-async function loadSettings() {
-    try {
-        const settings = await window.electronAPI.getSettings();
-        
-        // Display settings
-        showCpu.checked = settings.showCpu !== false; // default true
-        showRam.checked = settings.showRam !== false; // default true
-        showWpm.checked = settings.showWpm !== false; // default true
-        showTime.checked = settings.showTime !== false; // default true
-        timeFormat.value = settings.timeFormat || '12'; // default 12-hour
-        sleepTimeout.value = settings.sleepTimeout || 5; // default 5 minutes
-        showCpuTemp.checked = settings.showCpuTemp !== false;
-        showGpu.checked = settings.showGpu !== false;
-        showDate.checked = settings.showDate !== false;
-        showWeather.checked = settings.showWeather !== false;
-        weatherLocation.value = settings.weatherLocation || '';
-        tempUnit.value = settings.tempUnit || 'F';
-        startAtLogin.checked = settings.startAtLogin !== false;
-        
-    } catch (error) {
-        console.error('Failed to load settings:', error);
-
-    }
-}
-
-async function applyAppSettings() {
-    try {
-        // Validate electronAPI is available
-        if (!window.electronAPI) {
-            throw new Error('electronAPI not available. Check preload script.');
-        }
-        
-        if (!window.electronAPI.applySettings) {
-            throw new Error('applySettings method not available in electronAPI.');
-        }
-        
-        // Show applying state
-        const applyBtn = document.getElementById('applySettings');
-        const originalText = applyBtn.textContent;
-        applyBtn.textContent = 'Applying...';
-        applyBtn.disabled = true;
-        
-        const settings = readSettingsForm();
-        
-        console.log('Attempting to apply settings:', settings);
-        await window.electronAPI.applySettings(settings);
-        
-        // Show success state briefly
-        applyBtn.textContent = 'Applied!';
-        setTimeout(() => {
-            applyBtn.textContent = originalText;
-            applyBtn.disabled = false;
-        }, 1000);
-        
-    } catch (error) {
-        console.error('Failed to apply settings:', error);
-        console.error('Error details:', {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
-        });
-        
-        // Reset button state on error
-        const applyBtn = document.getElementById('applySettings');
-        applyBtn.textContent = 'Apply';
-        applyBtn.disabled = false;
-        alert(`Failed to apply settings. Error: ${error.message}\nCheck console for details.`);
-    }
-}
-
-async function saveAppSettings() {
-    try {
-        // Show saving state
-        const saveBtn = document.getElementById('saveSettings');
-        const originalText = saveBtn.textContent;
-        saveBtn.textContent = 'Saving...';
-        saveBtn.disabled = true;
-        
-        const settings = readSettingsForm();
-        
-        await window.electronAPI.saveSettings(settings);
-        
-        // Show success state briefly
-        saveBtn.textContent = 'Saved!';
-        setTimeout(() => {
-            saveBtn.textContent = originalText;
-            saveBtn.disabled = false;
-            hideSettings();
-        }, 1000);
-        
-    } catch (error) {
-        console.error('Failed to save settings:', error);
-        
-        // Reset button state on error
-        const saveBtn = document.getElementById('saveSettings');
-        saveBtn.textContent = 'Save Settings';
-        saveBtn.disabled = false;
-        alert('Failed to save settings. Please try again.');
-    }
-}
-
-async function resetAppSettings() {
-    try {
-        await window.electronAPI.resetSettings();
-        await loadSettings(); // Reload the reset settings
-
-        
-    } catch (error) {
-        console.error('Failed to reset settings:', error);
-
-    }
-}
-
-
-
-
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', initializeApp);

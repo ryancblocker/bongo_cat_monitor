@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0d">
+<title>Bongo Cat</title>
+<style>
+:root{--bg:#0b0b0d;--card:#18181b;--line:#2c2c31;--text:#f5f5f7;--sub:#a1a1aa;--acc:#ff9f43;--ok:#30d158;--bad:#ff453a}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);padding-bottom:40px}
+main{max-width:520px;margin:auto;padding:20px 16px 0}
+h1{margin:0;font-size:28px;line-height:34px;font-weight:800;letter-spacing:-.02em}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.pill{font-size:12px;font-weight:600;padding:5px 10px;border-radius:99px;background:var(--card);color:var(--sub);white-space:nowrap}
+.pill i{display:inline-block;width:7px;height:7px;border-radius:4px;margin-right:6px;background:var(--bad);vertical-align:1px}
+.pill.on i{background:var(--ok)}
+.lede{margin:2px 0 0;font-size:13px;color:var(--sub)}
+.preview{position:relative;margin-top:16px;border-radius:18px;overflow:hidden;background:#d6e8f8;aspect-ratio:240/200}
+.preview img{display:block;width:100%;height:100%;image-rendering:auto}
+.preview img.px{image-rendering:pixelated}
+.tag{position:absolute;left:3.3%;top:2%;padding:2px 10px;border-radius:99px;background:rgba(16,20,28,.5);color:#fff;font-size:13px;font-weight:600}
+.tag:empty{display:none}
+.tabs{margin-top:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;border-radius:12px;background:var(--card)}
+.tabs button{height:36px;border:0;border-radius:9px;font:inherit;font-size:14px;font-weight:600;color:var(--sub);background:transparent;cursor:pointer}
+.tabs button[aria-selected=true]{color:#0b0b0d;background:var(--text)}
+.panel[hidden]{display:none}
+.h{margin:22px 4px 8px;font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--sub)}
+.box{border-radius:16px;background:var(--card);overflow:hidden}
+.pad{padding:14px 16px}
+.row{min-height:60px;padding:8px 16px;display:flex;align-items:center;gap:12px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .t{flex:1;min-width:0}.row .t b{display:block;font-size:15px;font-weight:600}.row .t span{font-size:12px;color:var(--sub)}
+.sw{width:51px;height:31px;flex:none;position:relative;border:0;padding:0;border-radius:16px;cursor:pointer;background:#3f3f46;transition:background .2s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:14px;background:#fff;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.sw[aria-pressed=true]{background:var(--acc)}.sw[aria-pressed=true]::after{transform:translateX(20px)}
+.seg{display:grid;gap:4px;padding:4px;border-radius:10px;background:var(--bg)}
+.seg button{height:36px;border:0;border-radius:8px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;color:var(--sub);background:transparent}
+.seg button[aria-pressed=true]{color:#0b0b0d;background:var(--text)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tile{font:inherit;padding:6px 6px 8px;border-radius:14px;border:2px solid transparent;background:var(--bg);color:var(--text);cursor:pointer;text-align:center;font-size:13px;font-weight:600}
+.tile img{display:block;width:100%;aspect-ratio:240/200;border-radius:9px;margin-bottom:6px;background:#d6e8f8}
+.tile[aria-pressed=true]{border-color:var(--acc)}
+.tile:disabled{opacity:.35;cursor:default}
+.lbl{display:flex;justify-content:space-between;font-size:15px;font-weight:600}.lbl span{color:var(--sub);font-weight:500;font-variant-numeric:tabular-nums}
+.hint{font-size:12px;color:var(--sub);margin-top:6px}
+input[type=range]{width:100%;margin-top:10px;accent-color:var(--acc)}
+input[type=text]{font:inherit;font-size:16px;width:100%;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+label.s{display:block;font-size:12px;color:var(--sub);margin-bottom:6px}
+.gap{height:14px}
+#toast{position:fixed;left:50%;top:16px;transform:translate(-50%,-90px);background:#27272a;border:1px solid var(--line);padding:10px 16px;border-radius:12px;transition:transform .3s;z-index:9;font-weight:600}
+#toast.show{transform:translate(-50%,0)}
+.err{color:#ffb4b0}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <h1>Bongo Cat</h1>
+    <span class="pill" id="conn"><i></i><span>Connecting…</span></span>
+  </div>
+  <p class="lede">Changes show up on the cat's screen right away.</p>
+
+  <div class="preview" aria-label="Preview of your cat">
+    <img id="pv" alt="">
+    <div class="tag" id="pvTag"></div>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Settings sections">
+    <button role="tab" id="tab-cat" aria-controls="p-cat" aria-selected="true">Cat</button>
+    <button role="tab" id="tab-display" aria-controls="p-display" aria-selected="false">Display</button>
+    <button role="tab" id="tab-more" aria-controls="p-more" aria-selected="false">Weather &amp; PC</button>
+  </div>
+
+  <!-- ================= CAT ================= -->
+  <section class="panel" id="p-cat" role="tabpanel" aria-labelledby="tab-cat">
+    <div class="h">NAME</div>
+    <div class="box pad">
+      <input type="text" id="catName" maxlength="16" placeholder="Mochi" autocomplete="off" aria-label="Cat's name">
+      <div class="hint">Shown on a little tag above the cat. Leave empty to hide it.</div>
+    </div>
+
+    <div class="h">STYLE</div>
+    <div class="box pad">
+      <div class="seg" style="grid-template-columns:repeat(3,1fr)" id="style">
+        <button data-v="cartoon">Cartoon</button><button data-v="pixel">Pixel</button><button data-v="8bit">8-bit</button>
+      </div>
+      <div class="hint" id="styleHint"></div>
+    </div>
+
+    <div class="h">CAT</div>
+    <div class="box pad"><div class="tiles" id="catKind"></div></div>
+
+    <div class="h">COAT</div>
+    <div class="box pad"><div class="tiles" id="coat"></div></div>
+  </section>
+
+  <!-- ================= DISPLAY ================= -->
+  <section class="panel" id="p-display" role="tabpanel" aria-labelledby="tab-display" hidden>
+    <div class="h">SCREEN</div>
+    <div class="box pad">
+      <div class="lbl">Brightness <span id="brightV"></span></div>
+      <input type="range" id="brightness" min="10" max="255" step="1" aria-label="Brightness">
+    </div>
+
+    <div class="h">CARDS</div>
+    <div class="box">
+      <div class="row"><div class="t"><b>Weather</b><span>Temperature, conditions, high and low</span></div><button class="sw" id="showWeatherCard" aria-label="Weather card"></button></div>
+      <div class="row"><div class="t"><b>PC stats</b><span>CPU, GPU, RAM and typing speed</span></div><button class="sw" id="showPcCard" aria-label="PC stats card"></button></div>
+      <div class="row" style="display:block;padding:14px 16px">
+        <div class="lbl">Switch cards every <span id="cycleV"></span></div>
+        <input type="range" id="cycleSec" min="3" max="30" step="1" aria-label="Seconds per card">
+      </div>
+    </div>
+
+    <div class="h">CLOCK</div>
+    <div class="box pad">
+      <div class="seg" style="grid-template-columns:1fr 1fr" id="timeFormat"><button data-v="12">12-hour</button><button data-v="24">24-hour</button></div>
+    </div>
+
+    <div class="h">NAPS</div>
+    <div class="box pad">
+      <div class="lbl">Falls asleep after <span id="sleepV"></span></div>
+      <input type="range" id="sleepTimeout" min="1" max="30" step="1" aria-label="Minutes before the cat falls asleep">
+      <div class="hint">Minutes without typing.</div>
+    </div>
+  </section>
+
+  <!-- ================= WEATHER & PC ================= -->
+  <section class="panel" id="p-more" role="tabpanel" aria-labelledby="tab-more" hidden>
+    <div class="h">WEATHER</div>
+    <div class="box pad">
+      <label class="s" for="weatherLocation">Location</label>
+      <input type="text" id="weatherLocation" placeholder="80130 or Denver, CO" autocomplete="off">
+      <div class="hint" id="placeHint"></div>
+      <div class="gap"></div>
+      <label class="s" for="placeName">Name on the screen</label>
+      <input type="text" id="placeName" maxlength="16" placeholder="Highlands Ranch" autocomplete="off">
+      <div class="gap"></div>
+      <div class="seg" style="grid-template-columns:1fr 1fr" id="tempUnit"><button data-v="F">°F</button><button data-v="C">°C</button></div>
+    </div>
+
+    <div class="h">PC</div>
+    <div class="box">
+      <div class="row"><div class="t"><b>CPU temperature</b><span id="cpuHint">Needs LibreHardwareMonitor on Windows</span></div><button class="sw" id="showCpuTemp" aria-label="Show CPU temperature"></button></div>
+      <div class="row"><div class="t"><b>GPU</b><span>Usage and temperature</span></div><button class="sw" id="showGpu" aria-label="Show GPU"></button></div>
+      <div class="row" id="loginRow"><div class="t"><b>Start with Windows</b><span>Runs in the tray when the PC starts</span></div><button class="sw" id="startAtLogin" aria-label="Start with Windows"></button></div>
+    </div>
+  </section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const CATS = [['classic', 'Classic'], ['chonky', 'Chonky'], ['kitten', 'Kitten']];
+const COATS = [['default', 'Default'], ['grey', 'Grey'], ['tabby', 'Tabby']];
+let S = {};
+const $ = id => document.getElementById(id);
+
+function img(style, cat, coat) {
+  return style === '8bit' ? 'cats/8bit.png' : `cats/${style}_${cat}_${coat}.png`;
+}
+
+function toast(msg, bad) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'show' + (bad ? ' err' : '');
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => t.className = '', 1400);
+}
+
+async function save(changes, quiet) {
+  Object.assign(S, changes);
+  render();
+  try {
+    const r = await fetch('api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes) });
+    if (!r.ok) throw new Error(r.status);
+    apply(await r.json());
+    if (!quiet) toast('Saved');
+  } catch (e) {
+    toast("Couldn't reach your PC", true);
+  }
+}
+
+let timers = {};
+function saveLater(key, value, ms = 250) {
+  S[key] = value;
+  render();
+  clearTimeout(timers[key]);
+  timers[key] = setTimeout(() => save({ [key]: value }, true), ms);
+}
+
+function apply(state) {
+  S = state.settings;
+  const st = state.status;
+  $('conn').className = 'pill' + (st.connected ? ' on' : '');
+  $('conn').lastChild.textContent = st.connected ? 'Cat connected' : 'Cat not plugged in';
+  $('placeHint').textContent = st.weatherError ? 'Couldn’t get weather: ' + st.weatherError : (st.place ? 'Found: ' + st.place : '');
+  $('placeHint').className = 'hint' + (st.weatherError ? ' err' : '');
+  $('loginRow').style.display = st.platform === 'win32' ? '' : 'none';
+  if (st.platform !== 'win32') $('cpuHint').textContent = 'When the computer reports it';
+  render();
+}
+
+function seg(id, value) {
+  for (const b of $(id).children) b.setAttribute('aria-pressed', b.dataset.v === String(value));
+}
+function sw(id, on) { $(id).setAttribute('aria-pressed', on !== false); }
+
+function tiles(id, list, current, src, disabled) {
+  const box = $(id);
+  if (!box.children.length) {
+    for (const [v, label] of list) {
+      const b = document.createElement('button');
+      b.className = 'tile';
+      b.dataset.v = v;
+      b.innerHTML = `<img alt=""><span>${label}</span>`;
+      b.onclick = () => save({ [id]: v });
+      box.appendChild(b);
+    }
+  }
+  for (const b of box.children) {
+    b.setAttribute('aria-pressed', b.dataset.v === current);
+    b.disabled = disabled;
+    const want = src(b.dataset.v);
+    const im = b.querySelector('img');
+    if (im.getAttribute('src') !== want) im.src = want;
+    im.className = S.style === 'cartoon' ? '' : 'px';
+  }
+}
+
+function render() {
+  const eight = S.style === '8bit';
+  const pv = img(S.style, S.catKind, S.coat);
+  if ($('pv').getAttribute('src') !== pv) $('pv').src = pv;
+  $('pv').className = S.style === 'cartoon' ? '' : 'px';
+  $('pvTag').textContent = S.catName || '';
+  seg('style', S.style);
+  $('styleHint').textContent = eight ? 'The original pixel cat. Cat and coat choices apply to Cartoon and Pixel.' : '';
+  tiles('catKind', CATS, S.catKind, v => img(eight ? 'cartoon' : S.style, v, S.coat), eight);
+  tiles('coat', COATS, S.coat, v => img(eight ? 'cartoon' : S.style, S.catKind, v), eight);
+  if (document.activeElement !== $('catName')) $('catName').value = S.catName || '';
+  if (document.activeElement !== $('weatherLocation')) $('weatherLocation').value = S.weatherLocation || '';
+  if (document.activeElement !== $('placeName')) $('placeName').value = S.placeName || '';
+  $('brightness').value = S.brightness;
+  $('brightV').textContent = Math.round(S.brightness * 100 / 255) + '%';
+  $('cycleSec').value = S.cycleSec;
+  $('cycleV').textContent = S.cycleSec + ' s';
+  $('sleepTimeout').value = S.sleepTimeout;
+  $('sleepV').textContent = S.sleepTimeout + ' min';
+  seg('timeFormat', S.timeFormat);
+  seg('tempUnit', S.tempUnit);
+  for (const k of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) sw(k, S[k]);
+}
+
+// ---- wiring
+for (const t of document.querySelectorAll('[role=tab]')) {
+  t.onclick = () => {
+    for (const o of document.querySelectorAll('[role=tab]')) {
+      o.setAttribute('aria-selected', o === t);
+      $(o.getAttribute('aria-controls')).hidden = o !== t;
+    }
+  };
+}
+for (const id of ['style', 'timeFormat', 'tempUnit']) {
+  for (const b of $(id).children) b.onclick = () => save({ [id]: b.dataset.v });
+}
+for (const id of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) {
+  $(id).onclick = () => {
+    const next = S[id] === false;
+    if ((id === 'showWeatherCard' && !next && S.showPcCard === false) || (id === 'showPcCard' && !next && S.showWeatherCard === false)) {
+      return toast('Keep at least one card on', true);
+    }
+    save({ [id]: next });
+  };
+}
+$('brightness').oninput = e => saveLater('brightness', +e.target.value, 120);
+$('cycleSec').oninput = e => saveLater('cycleSec', +e.target.value, 400);
+$('sleepTimeout').oninput = e => saveLater('sleepTimeout', +e.target.value, 400);
+for (const id of ['catName', 'weatherLocation', 'placeName']) {
+  const el = $(id);
+  const commit = () => { if (el.value.trim() !== (S[id] || '')) save({ [id]: el.value.trim() }); };
+  el.onchange = commit;
+  el.onkeydown = e => { if (e.key === 'Enter') { el.blur(); } };
+}
+
+async function load() {
+  try {
+    const r = await fetch('api/settings');
+    apply(await r.json());
+  } catch (e) {
+    $('conn').className = 'pill';
+    $('conn').lastChild.textContent = "Can't reach your PC";
+  }
+}
+load();
+setInterval(load, 10000);  // pick up brightness changed on the cat's own screen
+</script>
+</body>
+</html>

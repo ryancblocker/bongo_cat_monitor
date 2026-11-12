@@ -45,8 +45,19 @@ class SettingsManager {
                 showDate: { type: 'boolean', default: true },
                 showWeather: { type: 'boolean', default: true },
                 weatherLocation: { type: 'string', default: '80130' },
+                placeName: { type: 'string', default: 'Highlands Ranch' },  // shown on the card ('' = the ZIP's town)
                 tempUnit: { type: 'string', enum: ['F', 'C'], default: 'F' },
                 startAtLogin: { type: 'boolean', default: true },
+                // Ross edition v2: cat, cards, brightness, phone config page
+                style: { type: 'string', enum: ['cartoon', 'pixel', '8bit'], default: 'cartoon' },
+                catKind: { type: 'string', enum: ['classic', 'chonky', 'kitten'], default: 'classic' },
+                coat: { type: 'string', enum: ['default', 'grey', 'tabby'], default: 'tabby' },
+                catName: { type: 'string', default: '' },
+                brightness: { type: 'number', minimum: 10, maximum: 255, default: 200 },
+                cycleSec: { type: 'number', minimum: 3, maximum: 60, default: 8 },
+                showWeatherCard: { type: 'boolean', default: true },
+                showPcCard: { type: 'boolean', default: true },
+                configKey: { type: 'string', default: '' },
                 esp32Settings: {
                     type: 'object',
                     properties: {

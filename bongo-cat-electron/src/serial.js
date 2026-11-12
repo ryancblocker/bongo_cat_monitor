@@ -50,7 +50,8 @@ class ESP32SerialManager {
      * "24:05" after midnight in Chromium, which the board would show as 12:05PM.)
      */
     static clockString(d = new Date()) {
-        return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        const p = n => String(n).padStart(2, '0');
+        return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;  // board keeps time from here
     }
 
     /**

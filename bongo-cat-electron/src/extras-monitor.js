@@ -239,11 +239,21 @@ class ExtrasMonitor {
             if (!this.place || this.place.query !== query) this.place = await this.geocode(query);
             const { lat, lon } = this.place;
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-                `&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`;
+                `&current=temperature_2m,weather_code,is_day,wind_speed_10m,relative_humidity_2m` +
+                `&daily=temperature_2m_max,temperature_2m_min&forecast_days=1` +
+                `&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto`;
             const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
             if (!res.ok) throw new Error(`weather service returned ${res.status}`);
             const data = await res.json();
-            this.weather = { tempF: data.current.temperature_2m, code: data.current.weather_code, at: Date.now() };
+            const cur = data.current, daily = data.daily || {};
+            this.weather = {
+                tempF: cur.temperature_2m, code: cur.weather_code, at: Date.now(),
+                isDay: cur.is_day !== 0,
+                windMph: cur.wind_speed_10m,
+                humidity: cur.relative_humidity_2m,
+                hiF: daily.temperature_2m_max ? daily.temperature_2m_max[0] : cur.temperature_2m,
+                loF: daily.temperature_2m_min ? daily.temperature_2m_min[0] : cur.temperature_2m,
+            };
             this.weatherError = '';
             this.weatherFailures = 0;
             console.log(`Weather: ${Math.round(this.weather.tempF)}F ${weatherWord(this.weather.code)} (${this.place.name})`);
@@ -287,6 +297,37 @@ class ExtrasMonitor {
         return `WX:${t}${u}|${weatherWord(this.weather.code)}`;
     }
 
+    fToUnit(f) {
+        return this.unit() === 'F' ? Math.round(f) : Math.round((f - 32) * 5 / 9);
+    }
+
+    /** WX2:code=3|day=1|t=54|hi=60|lo=41|wind=8|wu=mph|hum=40|u=F|place=Highlands Ranch  ("WX2:" = no weather) */
+    wx2Command() {
+        const w = this.weather;
+        if (this.settings.showWeather === false || !w) return 'WX2:';
+        const u = this.unit();
+        const wind = u === 'F' ? Math.round(w.windMph) : Math.round(w.windMph * 1.609);
+        const label = (this.settings.placeName || '').trim() || (this.place ? this.place.name.split(',')[0] : '');
+        const place = label.replace(/[|\r\n]/g, '');
+        return `WX2:code=${w.code}|day=${w.isDay ? 1 : 0}|t=${this.fToUnit(w.tempF)}|hi=${this.fToUnit(w.hiF)}|lo=${this.fToUnit(w.loF)}` +
+            `|wind=${wind}|wu=${u === 'F' ? 'mph' : 'km/h'}|hum=${Math.round(w.humidity ?? -1)}|u=${u}|place=${place}`;
+    }
+
+    /** PC:cpu=23|ram=41|wpm=82|cput=136|gpu=63|gput=160|u=F  (-1 = unknown or turned off) */
+    pcCommand(systemStats, typingStats) {
+        const s = this.settings, u = this.unit();
+        const cput = s.showCpuTemp === false ? -1 : cToUnit(this.hw.cpuTempC, u);
+        const gpu = s.showGpu === false || this.hw.gpuLoad === null ? -1 : Math.round(this.hw.gpuLoad);
+        const gput = s.showGpu === false ? -1 : cToUnit(this.hw.gpuTempC, u);
+        return `PC:cpu=${Math.round(systemStats.cpu || 0)}|ram=${Math.round(systemStats.memory || 0)}|wpm=${Math.round(typingStats.wpm || 0)}` +
+            `|cput=${cput}|gpu=${gpu}|gput=${gput}|u=${u}`;
+    }
+
+    /** DATE:Thu, Nov 12 */
+    dateLine(d = new Date()) {
+        return 'DATE:' + d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
     getStatus() {
         return {
             hw: this.hw,
@@ -294,7 +335,7 @@ class ExtrasMonitor {
             weather: this.weather,
             place: this.place ? this.place.name : '',
             weatherError: this.weatherError,
-            lines: [this.hwCommand(), this.dateCommand(), this.weatherCommand()]
+            lines: [this.wx2Command()]
         };
     }
 }

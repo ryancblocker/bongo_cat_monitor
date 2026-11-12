@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, shell } = require('electron');
 const path = require('path');
 const { EventEmitter } = require('events');
 
@@ -8,6 +8,8 @@ const ESP32SerialManager = require('./src/serial');
 const SystemMonitor = require('./src/system-monitor');
 const KeyboardMonitor = require('./src/keyboard-monitor');
 const ExtrasMonitor = require('./src/extras-monitor');
+const ConfigServer = require('./src/config-server');
+const boardSettings = require('./src/board-settings');
 
 const isDev = process.argv.includes('--dev');
 // Launched at Windows login: stay in the tray instead of opening the window
@@ -25,6 +27,9 @@ let esp32SerialManager;
 let systemMonitor;
 let keyboardMonitor;
 let extrasMonitor;
+let configServer;
+let lastSystemStats = { cpu: 0, memory: 0 };
+let lastTypingStats = { wpm: 0, isActive: false };
 
 // Auto-connect state
 let connecting = false;
@@ -178,13 +183,8 @@ function setupEventForwarding() {
     }
   });
 
-  // Extras: temps/GPU every 2 s; clock, date and weather every 15 s
-  setInterval(() => sendExtras(false), 2000);
-  setInterval(() => sendExtras(true), 15000);
-  
-  // Combined stats handler for ESP32 protocol
-  let lastSystemStats = { cpu: 0, memory: 0 };
-  let lastTypingStats = { wpm: 0, isActive: false };
+  // clock, date and weather every 15 s (PC stats go every second, below)
+  setInterval(() => sendExtras(), 15000);
   
   eventEmitter.on('system-stats', (stats) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -215,14 +215,16 @@ function setupEventForwarding() {
     }
   });
   
-  // FAST STATS SENDING - Responsive like Python app
-  setInterval(() => {
-    if (esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
-      // Send stats more frequently during active typing (like Python app)
-      const isTypingActive = lastTypingStats && lastTypingStats.isActive;
-      esp32SerialManager.sendCombinedStats(lastSystemStats, lastTypingStats);
+  // Every second: PC stats card + typing animation
+  setInterval(async () => {
+    if (!esp32SerialManager || !esp32SerialManager.getConnectionStatus().isConnected) return;
+    try {
+      await esp32SerialManager.sendCommand(extrasMonitor.pcCommand(lastSystemStats, lastTypingStats));
+      await esp32SerialManager.sendAnimationCommands(Math.round(lastTypingStats.wpm || 0), lastTypingStats.isActive || false);
+    } catch (error) {
+      console.error('Failed to send stats:', error.message);
     }
-  }, 1000); // 1 second for responsive animations (was 2000ms)
+  }, 1000);
   
   // Auto-start monitoring when app is ready
   setTimeout(async () => {
@@ -246,6 +248,7 @@ function setupEventForwarding() {
 
       console.log('🚀 Starting extras (temps, GPU, date, weather) and auto-connect...');
       extrasMonitor.start(settingsManager.getAllSettings());
+      await startConfigServer();
       autoConnectTick();
       setInterval(autoConnectTick, 3000);
       
@@ -258,32 +261,81 @@ function setupEventForwarding() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('serial-data', data);
     }
+    // brightness slider on the board's settings screen
+    const m = /^EVT:bright=(\d+)/.exec(data);
+    if (m) settingsManager.set('brightness', Math.min(255, Math.max(10, parseInt(m[1], 10))));
   });
 }
 
 // Send the board everything it needs after (re)connecting
 async function syncBoard() {
   try {
-    const settings = settingsManager.getAllSettings();
-    await esp32SerialManager.sendDisplaySettings(settings);
-    await esp32SerialManager.sendTimeUpdate();
-    await sendExtras(true);
+    await esp32SerialManager.sendCommand(boardSettings.setLine(settingsManager.getAllSettings()));
+    if (configServer && configServer.port) await esp32SerialManager.sendCommand('URL:' + configServer.url());
+    await sendExtras();
+    await esp32SerialManager.sendCommand(extrasMonitor.pcCommand(lastSystemStats, lastTypingStats));
   } catch (error) {
     console.error('Board sync failed:', error);
   }
 }
 
-async function sendExtras(includeSlow) {
+// clock, date, weather
+async function sendExtras() {
   if (!extrasMonitor || !esp32SerialManager || !esp32SerialManager.getConnectionStatus().isConnected) return;
   try {
-    await esp32SerialManager.sendCommand(extrasMonitor.hwCommand());
-    if (includeSlow) {
-      await esp32SerialManager.sendTimeUpdate();
-      await esp32SerialManager.sendCommand(extrasMonitor.dateCommand());
-      await esp32SerialManager.sendCommand(extrasMonitor.weatherCommand());
-    }
+    await esp32SerialManager.sendTimeUpdate();
+    await esp32SerialManager.sendCommand(extrasMonitor.dateLine());
+    await esp32SerialManager.sendCommand(extrasMonitor.wx2Command());
   } catch (error) {
     console.error('Failed to send extras:', error.message);
+  }
+}
+
+// ----------------------------------------------------------------- phone config page
+function configState() {
+  const s = settingsManager.getAllSettings();
+  const pick = {};
+  for (const k of ['style', 'catKind', 'coat', 'catName', 'brightness', 'cycleSec', 'showWeatherCard', 'showPcCard',
+    'timeFormat', 'sleepTimeout', 'weatherLocation', 'placeName', 'tempUnit', 'showCpuTemp', 'showGpu', 'startAtLogin']) pick[k] = s[k];
+  const ex = extrasMonitor ? extrasMonitor.getStatus() : {};
+  return {
+    settings: pick,
+    status: {
+      connected: !!(esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected),
+      place: ex.place || '',
+      weatherError: ex.weatherError || '',
+      sensors: ex.hw ? ex.hw.source : 'none',
+      platform: process.platform,
+    },
+  };
+}
+
+async function applyChanges(changes) {
+  const clean = boardSettings.validate(changes);
+  if (!Object.keys(clean).length) return configState();
+  settingsManager.updateSettings(clean);
+  const all = settingsManager.getAllSettings();
+  extrasMonitor.updateSettings(all);
+  if ('startAtLogin' in clean) applyLoginItem();
+  if (esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
+    await esp32SerialManager.sendCommand(boardSettings.setLine(all));
+    await esp32SerialManager.sendCommand(extrasMonitor.wx2Command());
+    await esp32SerialManager.sendCommand(extrasMonitor.pcCommand(lastSystemStats, lastTypingStats));
+  }
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('settings-changed', configState());
+  return configState();
+}
+
+async function startConfigServer() {
+  if (!settingsManager.get('configKey', '')) settingsManager.set('configKey', ConfigServer.newKey());
+  configServer = new ConfigServer({
+    getKey: () => settingsManager.get('configKey', ''),
+    getState: configState,
+    onChange: applyChanges,
+  });
+  const ok = await configServer.start();
+  if (ok && esp32SerialManager.getConnectionStatus().isConnected) {
+    await esp32SerialManager.sendCommand('URL:' + configServer.url());
   }
 }
 
@@ -572,8 +624,8 @@ ipcMain.handle('apply-settings', async (event, settings) => {
     // Send settings to ESP32 device if connected
     if (esp32SerialManager && esp32SerialManager.isConnected) {
       try {
-        await esp32SerialManager.sendDisplaySettings(settings);
-        await sendExtras(true);
+        await esp32SerialManager.sendCommand(boardSettings.setLine({ ...settingsManager.getAllSettings(), ...boardSettings.validate(settings) }));
+        await sendExtras();
         console.log('Settings sent to ESP32 device successfully');
       } catch (error) {
         console.error('Failed to send settings to ESP32:', error);
@@ -613,8 +665,8 @@ ipcMain.handle('save-settings', async (event, settings) => {
     // Send settings to ESP32 device if connected
     if (esp32SerialManager && esp32SerialManager.isConnected) {
       try {
-        await esp32SerialManager.sendDisplaySettings(settingsManager.getAllSettings());
-        await sendExtras(true);
+        await esp32SerialManager.sendCommand(boardSettings.setLine(settingsManager.getAllSettings()));
+        await sendExtras();
         console.log('Settings saved and sent to ESP32 device successfully');
       } catch (error) {
         console.error('Failed to send settings to ESP32:', error);
@@ -648,6 +700,14 @@ ipcMain.handle('reset-settings', async () => {
 
 
 
+ipcMain.handle('get-config-url', () => {
+  return configServer && configServer.port ? configServer.url() : '';
+});
+
+ipcMain.handle('open-config-page', () => {
+  if (configServer && configServer.port) shell.openExternal(configServer.url('localhost'));
+});
+
 ipcMain.handle('get-extras-status', () => {
   return extrasMonitor ? extrasMonitor.getStatus() : null;
 });
@@ -663,6 +723,7 @@ app.on('before-quit', async () => {
     }
     
     if (extrasMonitor) extrasMonitor.stop();
+    if (configServer) configServer.stop();
 
     if (keyboardMonitor && keyboardMonitor.isActive()) {
       await keyboardMonitor.stopMonitoring();

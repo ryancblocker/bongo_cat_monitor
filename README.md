@@ -1,53 +1,62 @@
 # 🐱 Bongo Cat Monitor: Ross edition
 
-Fork of [vostoklabs/bongo_cat_monitor](https://github.com/vostoklabs/bongo_cat_monitor) for a 2.8" **ESP32-32E (USB-C only) Cheap Yellow Display**, in a portrait stand. On top of the original typing cat, CPU, RAM and WPM, it adds:
+Fork of [vostoklabs/bongo_cat_monitor](https://github.com/vostoklabs/bongo_cat_monitor), rebuilt for a 2.8" **ESP32-32E (USB-C only) Cheap Yellow Display** standing in a portrait stand.
 
-- **CPU temperature** and **GPU usage + temperature**
-- **Date** and **weather** (Open-Meteo, no API key; default ZIP 80130)
-- 12-hour clock, °F everywhere (changeable in the app)
-- A desktop app that **finds the board by itself**, reconnects after an unplug, lives in the tray and **starts with Windows**
+- **Choose your cat**: Classic, Chonky or Kitten, in Default (white), Grey or Tabby, drawn as smooth **cartoon** or detailed **pixel** art, or the **original 8-bit** cat. Give it a name and it wears a little name tag.
+- **Weather in the background**: sun, moon and stars, drifting clouds, rain, snow, fog and lightning, matching the real weather (Open-Meteo, no API key).
+- **Header** with temperature, time and a ⚙ gear. Below it a **card that cycles** between weather (temp, conditions, high/low, wind, humidity) and PC stats (CPU, GPU, RAM with temps, typing speed). Tap the card to switch it.
+- **⚙ Settings on the screen**: a QR code for the phone settings page, plus a brightness slider.
+- **Phone settings page**, served by the desktop app: cat, coat, style, name, brightness, cards, clock, nap time, weather location and units. Changes show up instantly.
+- The cat types along with you, gets a happy face when you type fast, and dozes off when you stop. Tap it and it waves.
 
 ```
- 9:41PM        54F      <- clock / outside temp
- THU 12     CLOUDY      <- date / condition
- CPU: 23% 136F
- GPU: 63% 160F          <- hidden if the PC has no GPU reading
- RAM: 41%
- WPM: 82
-      (cat)
+firmware/                  PlatformIO project (LovyanGFX), the screen
+  src/cat_assets.cpp       generated cat art (tools/make_cats.py --export)
+bongo-cat-electron/        desktop app (Windows + Mac): stats, typing, weather, phone page
+  renderer/config.html     the phone settings page
+  renderer/cats/           cat previews for the page
+case/RossBongoStand/       Fusion script for the portrait stand (STLs in case/stl/)
+tools/
+  make_cats.py             draws every cat (previews in tools/out/, --export for firmware + app)
+  bongo.py                 test the board without the app: sample data, settings, screenshots
 ```
 
-## 1. Flash the board (from a Mac or PC)
+## 1. Flash the board
 
-Needs [PlatformIO](https://platformio.org/) (`brew install platformio`). From the repo root, with the board plugged in:
+Needs [PlatformIO](https://platformio.org/) (`brew install platformio`). With the board plugged in (and the desktop app closed):
 
 ```bash
-pio run -t upload && pio device monitor
+cd firmware && pio run -t upload
 ```
 
-`User_Setup.h` is set for this board: ILI9341 panel, not inverted, backlight on **GPIO 21** (the original repo's GPIO 27 leaves this board's screen dark).
+On first start it asks you to **tap four arrows** to calibrate touch. Hold a finger on the screen while plugging it in to calibrate again.
 
-Check the board without the desktop app (fills every row with sample data):
+### Testing without the app
+
+Set up the Python tools once:
 
 ```bash
-python3 tools/send_test.py /dev/cu.usbserial-10
+python3 -m venv .venv && .venv/bin/pip install pillow freetype-py pyserial
 ```
 
-Preview the layout without the board (uses the real sprites and LVGL font, after one `pio run`): `python3 tools/simulate_screen.py out.png`
+```bash
+.venv/bin/python tools/bongo.py demo --code 61 --night --typing 3 --shot rain.png
+```
+
+That sends sample weather (WMO code 61 = rain, at night) and PC stats, makes the cat type for 3 seconds, and saves a screenshot of the real screen. `send "SET:coat=grey|name=Mochi"` changes settings, and `dbg` prints the cat's state and the frame time.
+
+### Changing the cats
+
+`tools/make_cats.py` draws every cat from shapes (no image files), so proportions, colours and poses are all constants at the top. Run it with `--export` to regenerate `firmware/src/cat_assets.cpp` and the app previews, then reflash.
 
 ## 2. Ross's PC (Windows)
 
-1. Run `Bongo Cat Setup 1.1.0.exe` (build it with step 4 below). It's unsigned, so Windows SmartScreen will warn you: click **More info → Run anyway**. It installs for the current user and opens.
-2. Plug in the display. The app connects on its own within a few seconds. If Windows doesn't recognise the board, install the **CH340** USB driver (WCH's CH341SER), then replug.
-3. Close the window when you're done. The app keeps running in the tray (bottom-right) and starts with Windows. Right-click the tray icon → **Settings** to change the weather location, units or rows. **Quit** stops it.
-4. **CPU temperature** needs [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases), because Windows doesn't give CPU temps to normal apps:
-   - Unzip and run `LibreHardwareMonitor.exe` **as administrator**.
-   - Options → **Run On Windows Startup**, Options → **Start Minimized**, Options → **Minimize To Tray**.
-   - Options → **Remote Web Server → Run** (port 8085). Bongo Cat reads `http://localhost:8085/data.json`.
-   - Without it, the CPU row shows just the percentage.
-5. **GPU**: NVIDIA cards work with no setup (`nvidia-smi` ships with the driver). AMD/Intel GPUs come from LibreHardwareMonitor (step 4).
-
-The app window shows exactly what it sends to the screen ("Sent to screen") and where the sensor readings come from, which helps when something is blank.
+1. Run `Bongo Cat Setup 2.0.0.exe` (see step 4). It's unsigned, so SmartScreen warns: **More info → Run anyway**.
+2. **Windows Firewall** asks whether Bongo Cat may use the network: tick **Private networks** and **Allow**. That's what lets the phone reach the settings page.
+3. Plug in the display. The app finds it within a few seconds. If Windows doesn't recognise the board, install the **CH340** USB driver (WCH's CH341SER) and replug.
+4. Closing the window keeps the app running in the tray. It starts with Windows.
+5. **Settings**: tap the **⚙** on the cat's screen and scan the QR code with a phone on the same Wi-Fi. Or click **Open settings on this PC** in the app.
+6. **CPU temperature** needs [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases), because Windows doesn't give CPU temps to normal apps. Run it **as administrator**, then turn on Options → **Run On Windows Startup**, **Start Minimized**, **Minimize To Tray**, and **Remote Web Server → Run** (keep its default port, 8085). NVIDIA GPUs work without it.
 
 ## 3. Test on a Mac
 
@@ -59,9 +68,9 @@ cd bongo-cat-electron && npm ci && node node_modules/electron/install.js
 BONGO_FAKE_HW=1 npm start
 ```
 
-`BONGO_FAKE_HW=1` makes up CPU/GPU temps (Macs don't expose them) so every row can be checked. macOS will ask for **Input Monitoring / Accessibility** permission so the cat can see typing. `npm test` runs the sensor-parsing tests (LibreHardwareMonitor and nvidia-smi formats).
+`BONGO_FAKE_HW=1` makes up CPU/GPU temps (Macs don't expose them). macOS asks for **Input Monitoring / Accessibility** permission so the cat can see typing. `npm test` runs the sensor tests.
 
-If Electron says it "failed to install correctly" (npm 11 skips its download, and its unzip breaks on Node 26), unzip the cached download yourself:
+If Electron says it "failed to install correctly" (npm 11 skips its download, and its unzip breaks on Node 26):
 
 ```bash
 cd node_modules/electron && rm -rf dist && mkdir dist && unzip -q ~/Library/Caches/electron/*/electron-v28.3.3-darwin-arm64.zip -d dist && printf 'Electron.app/Contents/MacOS/Electron' > path.txt
@@ -73,34 +82,32 @@ cd node_modules/electron && rm -rf dist && mkdir dist && unzip -q ~/Library/Cach
 cd bongo-cat-electron && npx electron-builder --win
 ```
 
-Output: `bongo-cat-electron/dist/Bongo Cat Setup 1.1.0.exe` (electron-builder downloads its own Wine/NSIS the first time).
+Output: `bongo-cat-electron/dist/Bongo Cat Setup 2.0.0.exe`.
 
 ## 5. Print the portrait stand
 
-`case/RossBongoStand/RossBongoStand.py` is the sports-ticker stand rotated to portrait, with the USB-C port at the bottom. Run it in Fusion (Utilities → Add-Ins → Scripts and Add-Ins → **+**, add `case/RossBongoStand`, **Run**). It builds the design with a keep-out model of the board, checks for collisions (0), penny-bore clearance and tip-over (about 25° of lean before it tips), and writes STLs to `case/stl/`.
+`case/RossBongoStand/RossBongoStand.py` is the sports-ticker stand rotated to portrait, with the USB-C port at the bottom. Run it in Fusion (Utilities → Add-Ins → Scripts and Add-Ins → **+**, add `case/RossBongoStand`, **Run**). It checks for collisions (0), penny-bore clearance and tip-over (about 25° of lean before it tips), and writes STLs to `case/stl/`.
 
-What's different from the ticker stand:
-- Board pins, window, screw bosses and plug bay are the exact ticker measurements rotated 90°, so the board fits the same way.
-- The cavity has an extra **8 mm below the board**, so the 90° USB-C cable can turn into the cable hole, which sits low on the back directly behind the plug.
-- The rails sit higher (the bottom shell screws are where they used to be), so the base is **82 mm** tall instead of 62.
+- Board pins, window, screw bosses and plug bay are the ticker's measurements rotated 90°.
+- The cavity has an extra **8 mm below the board** for the 90° USB-C cable to turn into the cable hole, low on the back behind the plug.
+- The rails sit higher (the bottom shell screws are where they used to be), so the base is **82 mm** tall.
 
-Print (PLA/PETG, 0.2 mm) and lay each STL flat like the ticker: **Pod Front** face down, **Pod Back** open side down (rails up), **Base** upright (tree supports from the build plate only if the penny-bore roofs sag), **Penny Lid** flat with the snap arm up.
+Print (PLA/PETG, 0.2 mm) like the ticker: **Pod Front** face down, **Pod Back** open side down, **Base** upright, **Penny Lid** flat with the snap arm up. Hardware: 6× M3 heat-set inserts (4.0 OD × 4), 6× M3×8, a low-profile 90° USB-C cable, 40 pennies. Outside size **66 W × 66 D × 152 H mm**.
 
-Hardware is the same as the ticker: 6× M3 heat-set inserts (4.0 OD × 4 long), 6× M3×8, a low-profile 90° USB-C cable, 40 pennies.
+## Serial protocol (PC → board, 115200 baud, one line each)
 
-Assembly: plug the 90° cable into the board and point the cable at the back → set the board on the pins in the pod front, USB-C at the bottom → feed the cable out through the hole at the bottom of the pod back and screw the back on → feed the cable through the base tunnel from the front → slide the rails down into the slots until the nub clicks, then bolt from the back → 10 pennies per bore, hook the lid's tabs in and swing it shut.
+| Line | Example |
+|---|---|
+| `TIME:` | `TIME:21:41:05` (the board keeps time from here) |
+| `DATE:` | `DATE:Thu, Nov 12` |
+| `WX2:` | `WX2:code=3\|day=1\|t=54\|hi=60\|lo=41\|wind=8\|wu=mph\|hum=40\|u=F\|place=Highlands Ranch` (`WX2:` alone = no weather) |
+| `PC:` | `PC:cpu=23\|ram=41\|wpm=82\|cput=136\|gpu=63\|gput=160\|u=F` (`-1` = unknown) |
+| `SET:` | `SET:style=cartoon\|cat=chonky\|coat=grey\|name=Mochi\|bright=200\|cycle=8\|cards=3\|h24=0\|sleep=5` |
+| `URL:` | phone page address for the QR code |
+| typing | `SPEED:<ms>`, `STOP`, `IDLE_START`, `STREAK_ON`, `STREAK_OFF` |
+| testing | `PING`, `DBG`, `SHOT` (raw screenshot), `UI:settings` |
 
-Outside size: **66 W × 66 D × 152 H mm**, screen tilted 12° back.
-
-## Serial protocol additions
-
-| Command | Example | Notes |
-|---|---|---|
-| `HW:` | `HW:CPUT:136,GPU:63,GPUT:160,U:F` | `-1` = unknown (GPU row hides, CPU temp is left off) |
-| `DATE:` | `DATE:THU 12` | empty hides it |
-| `WX:` | `WX:54F\|CLOUDY` | temperature, then condition; empty hides it |
-
-Every row holds 15 characters (unscii 16 is 16 px wide); the app keeps each field within that.
+The board sends `HELLO:bongo2` at boot and `EVT:bright=<n>` when its brightness slider moves.
 
 ---
 

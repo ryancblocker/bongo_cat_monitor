@@ -78,106 +78,17 @@
                 <p class="help-text" id="sensorSource"></p>
             </section>
 
-            <!-- Controls Section -->
+            <!-- Phone settings -->
             <section class="card">
-                <h2>⚙️ Controls</h2>
+                <h2>📱 Phone Settings</h2>
+                <p class="help-text">Pick a cat, name it, and change the screen from your phone: tap the ⚙ on the cat's screen and scan the code, or open this link on a phone on the same Wi-Fi.</p>
+                <p class="config-url" id="configUrl">Starting…</p>
                 <div class="control-buttons">
-                    <button id="settingsBtn" class="btn btn-secondary">
-                        🔧 Display Settings
-                    </button>
+                    <button id="openConfigBtn" class="btn btn-primary">Open settings on this PC</button>
                 </div>
             </section>
-
-
         </main>
 
-        <!-- Settings Modal (hidden by default) -->
-        <div class="modal" id="settingsModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>⚙️ Settings</h2>
-                    <button class="modal-close" id="closeSettings">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <h3>📺 Display Settings</h3>
-                    <div class="settings-section">
-                        <div class="setting-group">
-                            <label for="showCpu">Show CPU Usage</label>
-                            <input type="checkbox" id="showCpu" checked>
-                        </div>
-                        <div class="setting-group">
-                            <label for="showRam">Show RAM Usage</label>
-                            <input type="checkbox" id="showRam" checked>
-                        </div>
-                        <div class="setting-group">
-                            <label for="showWpm">Show WPM (Typing Speed)</label>
-                            <input type="checkbox" id="showWpm" checked>
-                        </div>
-                        <div class="setting-group">
-                            <label for="showTime">Show Current Time</label>
-                            <input type="checkbox" id="showTime" checked>
-                        </div>
-                        <div class="setting-group">
-                            <label for="timeFormat">Time Format</label>
-                            <select id="timeFormat" class="setting-select">
-                                <option value="12">12-hour (AM/PM)</option>
-                                <option value="24">24-hour</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <h3>🌡️ Extras</h3>
-                    <div class="settings-section">
-                        <div class="setting-group">
-                            <label for="showCpuTemp">Show CPU Temperature</label>
-                            <input type="checkbox" id="showCpuTemp" checked>
-                        </div>
-                        <div class="setting-group">
-                            <label for="showGpu">Show GPU Usage + Temperature</label>
-                            <input type="checkbox" id="showGpu" checked>
-                        </div>
-                        <div class="setting-group">
-                            <label for="showDate">Show Date</label>
-                            <input type="checkbox" id="showDate" checked>
-                        </div>
-                        <div class="setting-group">
-                            <label for="showWeather">Show Weather</label>
-                            <input type="checkbox" id="showWeather" checked>
-                        </div>
-                        <div class="setting-group">
-                            <label for="weatherLocation">Weather Location</label>
-                            <input type="text" id="weatherLocation" placeholder="80130 or Denver, CO">
-                            <small class="help-text">US ZIP code, or a city like "Denver, CO"</small>
-                        </div>
-                        <div class="setting-group">
-                            <label for="tempUnit">Temperature Units</label>
-                            <select id="tempUnit" class="setting-select">
-                                <option value="F">°F</option>
-                                <option value="C">°C</option>
-                            </select>
-                        </div>
-                        <div class="setting-group">
-                            <label for="startAtLogin">Start with Windows</label>
-                            <input type="checkbox" id="startAtLogin" checked>
-                        </div>
-                    </div>
-
-                    <h3>😴 Sleep Settings</h3>
-                    <div class="settings-section">
-                        <div class="setting-group">
-                            <label for="sleepTimeout">Cat Sleep Timeout (minutes)</label>
-                            <input type="number" id="sleepTimeout" min="1" max="60" value="5">
-                            <small class="help-text">How long to wait before cat goes to sleep when no typing detected</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-success" id="applySettings">Apply</button>
-                    <button class="btn btn-primary" id="saveSettings">Save Settings</button>
-                    <button class="btn btn-secondary" id="resetSettings">Reset to Defaults</button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <script src="app.js"></script>

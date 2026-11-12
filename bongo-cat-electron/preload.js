@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   resetSettings: () => ipcRenderer.invoke('reset-settings'),
   getExtrasStatus: () => ipcRenderer.invoke('get-extras-status'),
+  getConfigUrl: () => ipcRenderer.invoke('get-config-url'),
+  openConfigPage: () => ipcRenderer.invoke('open-config-page'),
   
   // Manual WPM testing for fallback mode
 
