@@ -7,8 +7,8 @@ Fork of [vostoklabs/bongo_cat_monitor](https://github.com/vostoklabs/bongo_cat_m
 - **Game Boy Color style UI**: pixel font (Press Start 2P), Pokémon-style text boxes with a blinking ▼, HP-bar PC stats, and a name plate with **Tamagotchi mood hearts** that fill while you type.
 - **Pixel weather in the background**: dithered sky bands, sun, moon and stars, block clouds, rain, snow, fog and lightning, from the real weather (Open-Meteo, no API key).
 - **Header** with temperature, time and a ⚙ gear. Below it a **card that cycles** Weather → PC stats (CPU, GPU, RAM with temps, typing speed) → Focus (timer with a ▶ START button). Tap the card to switch it.
-- **Focus timer + levels**: start a 15/25/45/60-minute focus session from the phone page or the ⚙ OPTIONS screen. A timer card with an EXP bar counts down, and finishing it levels the cat up with a full-screen anime **LEVEL UP!**: vertical speed lines, the cat launches into the air fists-up on a thrust flare, powers up with a golden aura, then dives into a superhero landing on its desk (impact frame, flash, heavy shake, cracks, flying debris), "LEVEL UP!" slams in above it. Then a "MOCHI GREW TO LEVEL 4!" box.
-- **Demo**: Phone page → SCREEN → **PLAY DEMO** runs a 1-minute tour of every screen and animation (all weather, typing, sleeping, focus, level up, every coat, OPTIONS). It doesn't change settings or the level; tap the cat's screen to stop it. The level lives on the board and shows on the name plate. Mood hearts fill while you type and drain slowly when you don't.
+- **Focus timer + levels + evolution**: start a 15/25/45/60-minute focus session from the phone page or the ⚙ OPTIONS screen. A timer card with an EXP bar counts down, and finishing it levels the cat up: a text box slides up ("MOCHI GREW TO LV 4!"), the EXP bar fills, the number rolls over and a "+1" pops. At **Lv 5, 15 and 30 the cat evolves**, full screen: it glows on a teal background, turns white and flickers between its old and new shape faster and faster while light streams in, a white flash, then the new form appears with a sparkle burst. Each form is a little bigger and keeps its new gear on the desk screen afterwards: Lv 5 **Typist** (headband), Lv 15 **Pro Gamer** (headset, fluffier), Lv 30 **Keyboard King** (crown, cape, RGB keyboard).
+- **Demo**: Phone page → SCREEN → **PLAY DEMO** runs a 1-minute tour of every screen and animation (all weather, typing, sleeping, focus, the next evolution, every coat, OPTIONS). It doesn't change settings or the level; tap the cat's screen to stop it. The level lives on the board and shows on the name plate. Mood hearts fill while you type and drain slowly when you don't.
 - **⚙ OPTIONS screen**: a QR code for the phone settings page, the focus timer (tap the length to change it), and brightness blocks (tap ◀ ▶ or drag).
 - **Phone settings page** (same Game Boy style), served by the desktop app: name, coat, style, brightness, cards, clock, nap time, weather location and units. Changes show up instantly.
 
@@ -108,7 +108,7 @@ Print (PLA/PETG, 0.2 mm) like the ticker: **Pod Front** face down, **Pod Back** 
 | `SET:` | `SET:style=hd\|coat=calico\|name=Mochi\|bright=200\|cycle=8\|cards=3\|h24=0\|sleep=5` (style `hd`/`8bit`; coats `white black grey orange calico tuxedo siamese cream`) |
 | `URL:` | phone page address for the QR code |
 | `FOCUS:` | `FOCUS:25` starts a 25-minute session, `FOCUS:0` stops it |
-| `DEMO` | tour of every screen (`DEMO:0` stops it); `LEVELUP` previews the level-up animation |
+| `DEMO` | tour of every screen (`DEMO:0` stops it); `LEVELUP` previews a level-up, `EVOLVE` (or `EVOLVE:15`) an evolution, `LEVEL:<n>` shows the cat at that level until reboot (not saved) |
 | typing | `SPEED:<ms>`, `STOP`, `IDLE_START`, `STREAK_ON`, `STREAK_OFF` |
 | testing | `PING`, `DBG`, `SHOT` (raw screenshot), `UI:settings` |
 

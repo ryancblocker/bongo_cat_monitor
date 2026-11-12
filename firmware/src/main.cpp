@@ -7,7 +7,8 @@
 //   SET:style=hd|coat=calico|name=Mochi|bright=200|cycle=8|cards=3|h24=0|sleep=5|focus=25
 //   URL:http://192.168.1.20:8787/c/abc123/
 //   FOCUS:<minutes>  start a focus session (FOCUS:0 stops it)
-//   DEMO  tour of every screen and animation (DEMO:0 or a tap stops it)   LEVELUP  preview the level-up
+//   DEMO  tour of every screen and animation (DEMO:0 or a tap stops it)
+//   LEVELUP  preview a normal level-up   EVOLVE[:level]  preview an evolution   LEVEL:n  try a level (not saved)
 //   SPEED:<ms>  STOP  IDLE_START  STREAK_ON  STREAK_OFF  HEARTBEAT  PING  SHOT  DBG  UI:settings
 // board -> PC:
 //   HELLO:bongo2 (boot)   PONG   EVT:bright=180   EVT:level=3
@@ -66,7 +67,7 @@ static const DemoStep STEPS[] = {
     {3000, "HELLO!"}, {3000, "TYPING"}, {3000, "TYPING FAST"}, {3500, "PC STATS"},
     {2500, "SOME SUN"}, {2500, "CLOUDY"}, {2500, "RAIN"}, {3500, "STORM"}, {2500, "SNOW"},
     {2500, "FOG"}, {3000, "STARRY NIGHT"}, {2500, "PET ME!"}, {2200, "YAWN..."}, {3500, "ZZZ..."},
-    {3000, "FOCUS TIMER"}, {5600, "LEVEL UP!"},
+    {3000, "FOCUS TIMER"}, {10000, "EVOLUTION!"},
     {1100, "WHITE"}, {1100, "BLACK"}, {1100, "GREY"}, {1100, "ORANGE TABBY"}, {1100, "CALICO"},
     {1100, "TUXEDO"}, {1100, "SIAMESE"}, {1100, "CREAM"}, {1600, "ORIGINAL 8-BIT"}, {3000, "OPTIONS"},
 };
@@ -136,7 +137,13 @@ static void demoTick(uint32_t now) {
     if (s == 10) demoWeather(0, false);
     if (s == 11) { demoWeather(0, true); cat.poke(now); }
     if (s == 14) { view.card = CARD_FOCUS; focus.active = true; focus.startMs = now - 7 * 60000UL; focus.durMs = 25 * 60000UL; }
-    if (s == STEP_LEVELUP) { focus = demo.fo; levelUp.start(now, catLevel, catLevel + 1); levelUpReal = false; }
+    if (s == STEP_LEVELUP) {  // preview the next evolution (or the last one if fully evolved)
+      focus = demo.fo;
+      int st = min(stageFor(catLevel), 3);
+      static const int at[] = {0, 5, 15, 30};
+      levelUp.start(now, at[st] - 1, at[st], true);
+      levelUpReal = false;
+    }
     if (s >= STEP_COATS && s < STEP_8BIT) { settings.style = STYLE_HD; settings.coat = s - STEP_COATS; cat.stop(now); }
     if (s == STEP_8BIT) settings.style = STYLE_EIGHTBIT;
     if (s == STEP_OPTIONS) settings.style = demo.set.style, settings.coat = demo.set.coat;
@@ -273,7 +280,15 @@ static void handleLine(String line) {
   else if (line == "SHOT") shotPending = true;
   else if (line == "DEMO") demoStart();
   else if (line == "DEMO:0") demoStop();
-  else if (line == "LEVELUP") { levelUp.start(now, catLevel, catLevel + 1); levelUpReal = false; screen = Screen::Main; }
+  else if (line == "LEVELUP") { levelUp.start(now, catLevel, catLevel + 1, false); levelUpReal = false; screen = Screen::Main; }
+  else if (line.startsWith("LEVEL:")) catLevel = constrain(line.substring(6).toInt(), 1, 999);  // test only, not saved
+  else if (line.startsWith("EVOLVE")) {  // EVOLVE preview of the next evolution, EVOLVE:15 of a given level
+    int lv = line.length() > 7 ? line.substring(7).toInt() : 0;
+    if (lv < 2) { static const int at[] = {0, 5, 15, 30}; lv = at[min(stageFor(catLevel), 3)]; }
+    levelUp.start(now, lv - 1, lv, true);
+    levelUpReal = false;
+    screen = Screen::Main;
+  }
   else if (line.startsWith("FOCUS:")) {
     int m = line.substring(6).toInt();
     if (m > 0) startFocus(m);
@@ -535,29 +550,28 @@ void loop() {
     focus.active = false;
     catLevel++;
     saveLevel();
-    levelUp.start(now, catLevel - 1, catLevel);
+    levelUp.start(now, catLevel - 1, catLevel, stageFor(catLevel) > stageFor(catLevel - 1));  // evolves at Lv 5/15/30
     levelUpReal = true;
     screen = Screen::Main;  // the level-up plays full screen, even from OPTIONS
     cat.celebrate(now);
     Serial.printf("EVT:focus=done|level=%d\n", catLevel);
   }
-  if (levelUp.justEnded(now) && levelUpReal) {  // after the big animation, the "grew to" box
-    levelUpUntil = now + 6000;
-    cat.celebrate(now);
-  }
+  if (levelUp.justEnded(now) && levelUpReal) cat.celebrate(now);  // happy wave with hearts afterwards
 
   fx.set(weather.valid ? skyFor(weather.code) : Sky::Clear, weather.valid ? weather.day : true);
   fx.update(dt);
   cat.update(now, dt, settings.sleepMin, lastPcMsg);
   view.t = now;
   uint32_t t0 = micros();
-  if (levelUp.active(now)) {
+  if (levelUp.active(now) && levelUp.fullScreen()) {
     const CatImg* const* L = CAT_TABLE[settings.style % 2][settings.coat % COAT_COUNT];
     rnd.frame([&](Frame& f) { levelUp.draw(f, now, L, settings.name); }, shotPending);
   } else {
+    bool overlay = levelUp.active(now);
     rnd.frame([&](Frame& f) {
       drawMain(f, fx, cat, view);
-      if (demo.on) drawCaption(f, STEPS[demo.step].caption, now);
+      if (overlay) levelUp.drawOverlay(f, now, settings.name);  // "MOCHI GREW TO LV 4!"
+      else if (demo.on) drawCaption(f, STEPS[demo.step].caption, now);
     }, shotPending);
   }
   if (!shotPending) frameMs = frameMs * 0.9f + (micros() - t0) / 1000.0f * 0.1f;

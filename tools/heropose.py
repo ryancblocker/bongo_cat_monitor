@@ -16,7 +16,35 @@ HEAD_RX = 29   # head half-width
 GROUND = 118  # HD row the landing pose stands on
 
 
-def _parts(pose):
+def _gear(hx, hy, stage):
+    """evolution gear in design coordinates: (behind_body, in_front) part lists.
+    2: sweatband   3: + gaming headset   4: + crown and cape"""
+    behind, front = [], []
+    if stage >= 4:  # cape, behind everything
+        # wider than the shoulders so it drapes visibly down both sides
+        behind.append(("gear_cape", lambda d: d.polygon([(hx - 34, hy + 6), (hx + 34, hy + 6), (hx + 50, 117), (hx - 50, 117)], fill=255), []))
+    if stage >= 2:  # sweatband across the forehead, knot tails flying off the right side
+        def band(d):
+            for y in range(hy - 13, hy - 8):
+                t = (y - hy) / 19
+                half = int(HEAD_RX * (1 - t * t) ** 0.5) if abs(t) < 1 else 0
+                d.line([(hx - half, y), (hx + half, y)], fill=255)
+        front.append(("gear_band", band, []))
+        front.append(("gear_knot", lambda d: (d.line([(hx + HEAD_RX - 3, hy - 11), (hx + HEAD_RX + 9, hy - 17)], fill=255, width=4),
+                                              d.line([(hx + HEAD_RX - 3, hy - 10), (hx + HEAD_RX + 8, hy - 3)], fill=255, width=4)), []))
+    if stage >= 3:  # gaming headset: band over the top, ear cups, mic
+        front.append(("gear_set", lambda d: d.arc([hx - 31, hy - 27, hx + 31, hy + 15], 200, 340, fill=255, width=4), []))
+        front.append(("gear_cup", lambda d: (d.ellipse([hx - 35, hy - 6, hx - 23, hy + 8], fill=255),
+                                             d.ellipse([hx + 23, hy - 6, hx + 35, hy + 8], fill=255),
+                                             d.line([(hx - 27, hy + 6), (hx - 13, hy + 13)], fill=255, width=2),
+                                             d.ellipse([hx - 15, hy + 11, hx - 10, hy + 16], fill=255)), []))
+    if stage >= 4:  # crown between the ears
+        front.append(("gear_crown", lambda d: d.polygon([(hx - 11, hy - 16), (hx - 11, hy - 26), (hx - 5, hy - 21), (hx, hy - 30),
+                                                          (hx + 5, hy - 21), (hx + 11, hy - 26), (hx + 11, hy - 16)], fill=255), []))
+    return behind, front
+
+
+def _parts(pose, stage=1):
     """[(name, draw(d), paws)] back to front, plus the face centre and wink flag.
     paws = [(x, y, r, beans)]: round ends of the arms (and feet) for coat colours / pink beans."""
     def ell(box):
@@ -70,6 +98,18 @@ def _parts(pose):
              # no beans: in the landing both paws face away from us (fist up, paw pressed to the ground)
              [(up[1][0], up[1][1], ARM_W / 2 + 1, False), (down[1][0], down[1][1], ARM_W / 2 + 1, False)]),
         ], (hx, hy), True
+    if pose == "stand":  # evolution scene: standing, paws at its sides, wearing its stage's gear
+        hx, hy = 62, 40
+        left, right = ((40 - FAT, 70), (30 - FAT, 88)), ((84 + FAT, 70), (94 + FAT, 88))
+        fl, fr = [46, 105, 60, 118], [70, 105, 84, 118]
+        behind, front = _gear(hx, hy, stage)
+        return behind + [
+            ("tail", limb([(88, 96), (106, 98), (116, 87), (116, 77), (111, 71), (105, 73)], 8), []),
+            ("foot_l", ell(fl), foot(fl)),
+            ("foot_r", ell(fr), foot(fr)),
+            ("body", body_with_arms([32 - FAT, 45, 96 + FAT, 109], [left, right], head(hx, hy)),
+             [(left[1][0], left[1][1], ARM_W / 2 + 1, False), (right[1][0], right[1][1], ARM_W / 2 + 1, False)]),
+        ] + front, (hx, hy), False
     hx, hy = 62, 40  # fly
     up, side = ((90 + FAT, 62), (102 + FAT, 40)), ((38 - FAT, 72), (26 - FAT, 84))
     fl, fr = [46, 105, 60, 118], [70, 105, 84, 118]  # feet about as wide as the arms
@@ -105,11 +145,21 @@ def _old(x, y):
     return ANCHOR[0] + (x - ANCHOR[0]) / ZOOM, ANCHOR[1] + (y - ANCHOR[1]) / ZOOM
 
 
-def build(pose, coat, pc):
+GEAR = {  # base, shade, highlight
+    "gear_band": ("E84858", "B83048", "F88898"), "gear_knot": ("E84858", "B83048", "F88898"),
+    "gear_set": ("3A3A4A", "26262F", "5A5A70"), "gear_cup": ("3A3A4A", "26262F", "58A0F0"),
+    "gear_crown": ("F8C038", "D09020", "FFF0A0"), "gear_cape": ("C83040", "A02030", "E05060"),
+}
+
+
+def build(pose, coat, pc, stage=1, zoom=None):
     """RGBA image of the pose in the given coat. pc = the pixelcat module (colours).
     Shapes are designed on the 128 grid and drawn at ZOOM; colour patterns are worked out
     in the design coordinates so they shrink with the cat."""
-    parts, (fx, fy), wink = _parts(pose)
+    global ZOOM
+    if zoom is not None:
+        ZOOM = zoom
+    parts, (fx, fy), wink = _parts(pose, stage)
     c = pc.COAT[coat]
     kind = [[""] * N for _ in range(N)]
     part = [[""] * N for _ in range(N)]
@@ -130,6 +180,8 @@ def build(pose, coat, pc):
                     else:
                         paw_px.discard((x, y))
                 elif op[x, y]:
+                    if name.startswith("gear") and kind[y][x] == "fur":
+                        continue  # gear lying on the cat: no black line across the fur
                     kind[y][x], part[y][x] = "line", name
 
     # the head is part of the body's silhouette; tag its area so face colours still apply
@@ -149,6 +201,13 @@ def build(pose, coat, pc):
 
     def colour(x, y):
         nm = part[y][x]
+        if nm.startswith("gear"):
+            g = GEAR[nm]
+            if nm == "gear_crown" and (x * 7 + y * 3) % 23 == 0:
+                return pc.C("E84858")  # gems
+            below = at(x, y + 1) != "fur" or not part[min(N - 1, y + 1)][x].startswith("gear")
+            above = at(x, y - 1) != "fur" or not part[max(0, y - 1)][x].startswith("gear")
+            return pc.C(g[1] if below else (g[2] if above else g[0]))
         shade = any(at(x - k, y + k) in ("line", "") for k in (1, 2, 3))
         hi = coat != "white" and at(x + 1, y - 1) in ("line", "")
         base, sh = c["base"], c["shade"]

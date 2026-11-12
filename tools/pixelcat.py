@@ -17,6 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from sprites import load_8bit, EIGHT  # noqa: E402
 import heropose  # noqa: E402
+import evolution  # noqa: E402
 
 OUT = os.path.join(HERE, "out")
 N = 128  # HD sprite size
@@ -444,7 +445,9 @@ def zzz(frame):
 # ------------------------------------------------------------------ all layers
 LAYERS = ["body", "body_twitch", "face_stock", "face_happy", "face_blink", "face_sleepy", "face_look_l",
           "face_look_r", "face_yawn", "face_yawn_half", "desk", "paws_up", "paws_left", "paws_right", "fx_left", "fx_right",
-          "fx_zzz0", "fx_zzz1", "fx_zzz2", "fx_heart0", "fx_heart1", "hero_fly", "hero_land"]
+          "fx_zzz0", "fx_zzz1", "fx_zzz2", "fx_heart0", "fx_heart1",
+          "gear2", "gear3", "gear4", "fluff", "desk_rgb", "stand1", "stand2", "stand3", "stand4"]
+STAND_ZOOM = [0.62, 0.70, 0.78, 0.86]  # the evolution scene's cat grows a size each stage
 
 
 def hd_layers():
@@ -461,9 +464,13 @@ def hd_layers():
         out[f"hd/{coat}/face_yawn_half"] = paint_yawn(coat, wide=False)
         for w in ("up", "left", "right"):
             out[f"hd/{coat}/paws_{w}"] = paint_fur_layer(f"paws_{w}", coat, paws=True)
-        for pose in ("fly", "land"):  # full-body poses for the level-up
-            out[f"hd/{coat}/hero_{pose}"] = heropose.build(pose, coat, sys.modules[__name__])
+        out[f"hd/{coat}/fluff"] = evolution.fluff(coat, sys.modules[__name__])
+        for st in range(1, 5):  # full-body cat for the evolution scene, one per stage
+            out[f"hd/{coat}/stand{st}"] = heropose.build("stand", coat, sys.modules[__name__], stage=st, zoom=STAND_ZOOM[st - 1])
     out["hd/-/desk"] = d
+    out["hd/-/desk_rgb"] = evolution.desk_rgb(d)
+    for st in (2, 3, 4):
+        out[f"hd/-/gear{st}"] = evolution.gear(st, sys.modules[__name__])
     for n in ("fx_left", "fx_right"):
         out[f"hd/-/{n}"] = fx(n)
     for f in range(3):

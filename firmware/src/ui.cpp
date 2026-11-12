@@ -5,6 +5,7 @@
 
 #include <math.h>
 
+#include "levelup_fx.h"
 #include "state.h"
 
 // palette
@@ -289,9 +290,12 @@ void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
   // cat: body -> face -> desk -> paws -> effects (body, face and paws breathe together)
   const CatImg* const* L = CAT_TABLE[settings.style % 2][settings.coat % COAT_COUNT];
   int dy = cat.bob();
+  int stage = stageFor(catLevel);  // evolution: gear and fluff it has earned stay on
+  if (stage >= 3) f.cat(L[L_FLUFF], dy);
   f.cat(L[cat.body()], dy);
   f.cat(L[cat.face()], dy);
-  f.cat(L[L_DESK]);
+  if (stage >= 2) f.cat(L[L_GEAR2 + stage - 2], dy);
+  f.cat(L[stage >= 4 && L[L_DESK_RGB] ? L_DESK_RGB : L_DESK]);
   if (cat.paws() != L_COUNT) f.cat(L[cat.paws()], dy);
   if (cat.fx() != L_COUNT) f.cat(L[cat.fx()]);
   if (cat.fx2() != L_COUNT) f.cat(L[cat.fx2()]);
