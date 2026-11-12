@@ -16,6 +16,7 @@ struct MainView {
   int card = CARD_WEATHER;  // card showing (or sliding out)
   int next = -1;            // card sliding in, -1 = none
   float slide = 0;          // 0..1 transition progress
+  int dir = 1;              // +1 slide left (to the PC card), -1 slide right (back to weather)
   int nCards = 2;
   uint32_t t = 0;           // millis(), for blinking arrows
 };

@@ -12,7 +12,6 @@ static const uint32_t INK = 0x202838, PAPER = 0xF8F8F0, RIM = 0x98B0D0, SUB = 0x
 static const uint32_t HDR = 0x283050, HDR_LINE = 0x181C30, GOLD = 0xF8C038;
 static const char* const DEG = "\xC2\xB0";
 static const char* const HEART = "\xE2\x99\xA5";  // ♥
-static const char* const DOWN = "\xE2\x96\xBC";   // ▼
 static const char* const LEFT = "\xE2\x97\x80";   // ◀
 static const char* const RIGHT = "\xE2\x96\xB6";  // ▶
 
@@ -142,9 +141,26 @@ static void hpBar(Frame& f, int x, int y, int w, int pct) {
   if (fw > 2) f.fill(x + 2, y + 2, fw, 2, lerp565(c565(c), c565(0xFFFFFF), 90));  // shine
 }
 
-static void nextArrow(Frame& f, int x, int y, uint32_t t) {
-  f.text(DOWN, x, y + (((t / 450) & 1) ? 2 : 0), PX8, INK);
+// ▶ on the weather card (PC stats are next), ◀ on the PC card; nudges sideways
+static void nextArrow(Frame& f, int card, uint32_t t) {
+  int nudge = ((t / 450) & 1) ? 2 : 0;
+  int y = CARD_Y + CARD_H - 12;
+  if (card == CARD_WEATHER) f.text(RIGHT, CARD_X + CARD_W - 20 + nudge, y, PX8, INK);
+  else f.text(LEFT, CARD_X + 12 - nudge, y, PX8, INK);
 }
+
+static const char* const THERMO[] = {  // 5x10, drawn at 1x next to temperatures
+    ".kkk.",
+    ".kwk.",
+    ".kwk.",
+    ".krk.",
+    ".krk.",
+    ".krk.",
+    "kkrkk",
+    "krrrk",
+    "krrrk",
+    ".kkk.",
+};
 
 static void weatherCard(Frame& f, int x, int y) {
   if (!weather.valid) {
@@ -185,29 +201,35 @@ static void pcCard(Frame& f, int x, int y) {
   }
   bool gpu = pc.gpu >= 0 || pc.gpuT >= 0;
   int step = gpu ? 16 : 20;
-  int y0 = y + 16 + (gpu ? 0 : 4);
-  char v[24];
+  int y0 = y + 12 + (gpu ? 0 : 4);
+  // columns: label | HP bar | value (left-aligned, all rows) | thermometer + temp
+  const int barX = x + 46, barW = 72, valX = x + 126, tempX = x + 170;
+  char v[16];
   int r = 0;
-  auto row = [&](const char* label, int pct, const char* value) {
+  auto row = [&](const char* label, int pct, const char* value, int temp) {
     int cy = y0 + r * step;
     f.text(label, x + 12, cy, PX8, INK);
-    hpBar(f, x + 46, cy - 4, 86, pct);
-    f.text(value, x + CARD_W - 12, cy, PX8, INK, AL_R);
+    hpBar(f, barX, cy - 4, barW, pct);
+    if (value[0]) f.text(value, valX, cy, PX8, INK);
+    if (temp >= 0) {
+      f.bitmap(THERMO, 5, 10, tempX, cy - 5, 1);
+      char t[12];
+      snprintf(t, sizeof t, "%d%s", temp, DEG);
+      f.text(t, tempX + 8, cy, PX8, INK);
+    }
     r++;
   };
-  if (pc.cpuT >= 0) snprintf(v, sizeof v, "%d%% %d%s", pc.cpu, pc.cpuT, DEG);
-  else snprintf(v, sizeof v, "%d%%", pc.cpu);
-  row("CPU", pc.cpu, v);
+  snprintf(v, sizeof v, "%d%%", pc.cpu);
+  row("CPU", pc.cpu, v, pc.cpuT);
   if (gpu) {
-    if (pc.gpu >= 0 && pc.gpuT >= 0) snprintf(v, sizeof v, "%d%% %d%s", pc.gpu, pc.gpuT, DEG);
-    else if (pc.gpu >= 0) snprintf(v, sizeof v, "%d%%", pc.gpu);
-    else snprintf(v, sizeof v, "%d%s", pc.gpuT, DEG);
-    row("GPU", max(0, pc.gpu), v);
+    if (pc.gpu >= 0) snprintf(v, sizeof v, "%d%%", pc.gpu);
+    else v[0] = 0;
+    row("GPU", max(0, pc.gpu), v, pc.gpuT);
   }
   snprintf(v, sizeof v, "%d%%", pc.ram);
-  row("RAM", pc.ram, v);
+  row("RAM", pc.ram, v, -1);
   snprintf(v, sizeof v, "%d", pc.wpm);
-  row("WPM", pc.wpm * 100 / 120, v);
+  row("WPM", pc.wpm * 100 / 120, v, -1);
 }
 
 static void card(Frame& f, int which, int x) {
@@ -246,11 +268,11 @@ void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
     box(f, CARD_X, CARD_Y, CARD_W, CARD_H);
     f.setClip(CARD_X + 6, CARD_Y + 4, CARD_W - 12, CARD_H - 8);
     float e = v.slide * v.slide * (3 - 2 * v.slide);
-    int dx = ev((int)(e * CARD_W));
+    int dx = ev((int)(e * CARD_W)) * v.dir;
     card(f, v.card, CARD_X - dx);
-    if (v.next >= 0) card(f, v.next, CARD_X + CARD_W - dx);
+    if (v.next >= 0) card(f, v.next, CARD_X + v.dir * CARD_W - dx);
     f.clearClip();
-    if (v.nCards > 1 && v.next < 0) nextArrow(f, CARD_X + CARD_W - 20, CARD_Y + CARD_H - 14, v.t);
+    if (v.nCards > 1 && v.next < 0) nextArrow(f, v.card, v.t);
   }
 
   // header bar

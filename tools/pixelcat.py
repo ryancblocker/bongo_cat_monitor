@@ -264,59 +264,68 @@ def paint_yawn(coat):
 
 # ------------------------------------------------------------------ desk + keyboard
 def desk():
+    """Wooden desk below a straight table edge, and the original keyboard.
+
+    The edge is a least-squares line through the original table line (the Scale2x'd
+    staircase looked jagged). The keyboard is the original's pixels at exactly 2x, so it
+    keeps the original's angle, just recoloured."""
+    src = load_8bit(EIGHT["desk"])
+    g64 = classify(src)
+    n64 = 64
+
+    def at64(x, y):
+        return g64[y][x] if 0 <= x < n64 and 0 <= y < n64 else ""
+    # keyboard = grey keys + the outline pixels touching them; the rest of the outline is the table edge
+    kb = set()
+    for y in range(n64):
+        for x in range(n64):
+            k = g64[y][x]
+            if k == "grey" or (k == "line" and any(at64(x + dx, y + dy) == "grey" for dx in (-1, 0, 1) for dy in (-1, 0, 1))):
+                kb.add((x, y))
+    # close the keyboard's outer outline: outline pixels next to keyboard outline pixels
+    for _ in range(2):
+        add = set()
+        for y in range(n64):
+            for x in range(n64):
+                if g64[y][x] == "line" and (x, y) not in kb:
+                    nb = sum((x + dx, y + dy) in kb for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+                    if nb >= 3:
+                        add.add((x, y))
+        kb |= add
+    edge = [(x, y) for y in range(n64) for x in range(n64) if g64[y][x] == "line" and (x, y) not in kb]
+    # straight line through the edge (in HD coordinates)
+    xs = [2 * x + 1 for x, _ in edge]
+    ys = [2 * y + 1 for _, y in edge]
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    a = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / sum((x - mx) ** 2 for x in xs)
+    b = my - a * mx
+
     im = Image.new("RGBA", (N, N))
-    d = ImageDraw.Draw(im)
-    # table line from the original, then fill the desk below it
-    line_y = {}
-    for (x, y) in [(x, y) for y in range(N) for x in range(N) if G["desk"][y][x] == "line"]:
-        pass
-    # the table edge: for each column, the lowest outline pixel in the band above the keyboard
-    top = {}
-    tl = blobs(G["desk"], "line")
-    edge = max(tl, key=lambda b: max(p[0] for p in b) - min(p[0] for p in b))  # longest = table line
-    for (x, y) in edge:
-        top[x] = min(top.get(x, 999), y)
-    xs = sorted(top)
-    wood, wood_d, wood_l = C("C88A5A"), C("A86E43"), C("DCA273")
+    p = im.load()
+    wood, wood_d, wood_l, edge_c = C("C88A5A"), C("A86E43"), C("DCA273"), C("3A2210")
     for x in range(N):
-        tx = min(xs, key=lambda v: abs(v - x))
-        y0 = top[tx] + (0 if x in top else 0)
-        for y in range(y0, N):
-            col = wood_l if y - y0 < 2 else wood
-            if (y - y0) > 4 and (x * 3 + y * 7) % 23 == 0:
+        y0 = int(round(a * x + b))
+        for y in range(max(0, y0), N):
+            col = wood_l if y - y0 in (1, 2) else wood
+            if y - y0 > 4 and (x * 3 + y * 7) % 23 == 0:
                 col = wood_d
-            im.putpixel((x, y), col + (255,))
-        im.putpixel((x, y0), C("3A2210") + (255,))
-    # keyboard: parallelogram matching the original's
-    kb = [b for b in tl if b is not edge]
-    kp = [p for b in kb for p in b]
-    # corners from the original keyboard outline
-    tlc = min(kp, key=lambda p: p[0] + p[1] * 0.2)
-    brc = max(kp, key=lambda p: p[0] + p[1] * 0.2)
-    trc = max(kp, key=lambda p: p[0] - p[1] * 2.6)
-    blc = min(kp, key=lambda p: p[0] - p[1] * 2.6)
-    U = ((trc[0] - tlc[0]), (trc[1] - tlc[1]))          # along the keyboard
-    V = ((blc[0] - tlc[0]), (blc[1] - tlc[1]))          # across it
-    def P(u, v):
-        return (tlc[0] + U[0] * u + V[0] * v, tlc[1] + U[1] * u + V[1] * v)
-    # shadow, body
-    d.polygon([P(0, 0.12), P(1, 0.12), P(1, 1.15), P(0, 1.15)], fill=C("6E4A2E") + (255,))
-    d.polygon([P(0, 0), P(1, 0), P(1, 1), P(0, 1)], fill=C("454857") + (255,), outline=C("15151C") + (255,))
-    rows, cols = 4, 13
-    for r in range(rows):
-        for k in range(cols - (1 if r == 3 else 0)):
-            off = 0.5 if r % 2 else 0
-            u0 = 0.035 + (k + off * 0.5) * (0.93 / cols)
-            u1 = u0 + 0.93 / cols - 0.018
-            v0 = 0.08 + r * (0.86 / rows)
-            v1 = v0 + 0.86 / rows - 0.07
-            if r == 3 and 3 <= k <= 8:  # space bar
-                if k != 3:
-                    continue
-                u1 = 0.035 + 9 * (0.93 / cols) - 0.018
-            d.polygon([P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)], fill=C("C9CCD8") + (255,))
-            d.line([P(u0, v0), P(u1, v0)], fill=C("ECEEF4") + (255,))
-            d.line([P(u0, v1), P(u1, v1)], fill=C("8C90A1") + (255,))
+            p[x, y] = col + (255,)
+        if 0 <= y0 < N:
+            p[x, y0] = edge_c + (255,)
+    # keyboard: original pixels, 2x, recoloured
+    for (x, y) in kb:
+        r, g, bl, al = src.getpixel((x, y))
+        k = g64[y][x]
+        if k == "line":
+            inner = all((x + dx, y + dy) in kb for dx in (-1, 0, 1) for dy in (-1, 0, 1))
+            col = C("4A4E5E") if inner else C("15151C")  # slate grout between keys, black rim
+        else:
+            col = C("CDD0DA") if (r + g + bl) / 3 > 130 else C("8E92A3")
+        for dx in (0, 1):
+            for dy in (0, 1):
+                p[2 * x + dx, 2 * y + dy] = col + (255,)
+    print("table edge: y = %.3f x + %.1f, keyboard %d px" % (a, b, len(kb)))
     return im
 
 

@@ -215,6 +215,7 @@ static void startSlide(int to) {
   if (to == view.card || view.next >= 0) return;
   view.next = to;
   view.slide = 0;
+  view.dir = to == CARD_PC ? 1 : -1;  // PC card comes in from the right, weather from the left
 }
 
 static void setBright(int b) {

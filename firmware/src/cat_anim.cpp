@@ -128,9 +128,9 @@ CatLayer CatAnim::paws() const {
 
 CatLayer CatAnim::fx() const {
   if (stage == ASLEEP) return (CatLayer)(L_FX_ZZZ0 + zzz);
-  bool fast = typingNow && speed <= 150;  // smaller step = faster typing
-  if (fast && pawFrame == 0) return L_FX_LEFT;
-  if (fast && pawFrame == 2) return L_FX_RIGHT;
+  // impact lines on every paw strike while typing (like the original)
+  if (typingNow && pawFrame == 0) return L_FX_LEFT;
+  if (typingNow && pawFrame == 2) return L_FX_RIGHT;
   return L_COUNT;
 }
 
