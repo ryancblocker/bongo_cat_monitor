@@ -387,21 +387,21 @@ static void setupTouch() {
   p.end();
 }
 
-static void startSlide(int to);
-static void advanceCard() {
+static void startSlide(int to, int dir);
+// step = +1 next card, -1 previous card (both wrap around: weather -> metrics -> focus -> weather)
+static void advanceCard(int step = 1) {
   int ids[3], n = enabledCards(ids);
   if (n < 2) return;
   int i = 0;
   while (i < n && ids[i] != view.card) i++;
-  startSlide(ids[(i + 1) % n]);
+  startSlide(ids[(i + step + n) % n], step);
 }
 
-static void startSlide(int to) {
+static void startSlide(int to, int dir) {
   if (to == view.card || view.next >= 0) return;
   view.next = to;
   view.slide = 0;
-  int ids[3], n = enabledCards(ids);
-  view.dir = (n > 0 && to == ids[0]) ? -1 : 1;  // wrapping back to the first card slides the other way
+  view.dir = dir;  // next slides in from the right, previous from the left
 }
 
 static void setBright(int b) {
@@ -446,10 +446,11 @@ static void handleTouch(uint32_t now) {
         settingsSince = now;
       } else if (sy >= CARD_Y && sy < CARD_Y + CARD_H) {
         if (now < levelUpUntil) levelUpUntil = 0;  // tap closes the level-up box
-        else if (view.card == CARD_FOCUS && !focus.active && sx >= FC_BTN_X - 6 && sy >= FC_BTN_Y - 6) {
-          startFocus(settings.focusMin);  // ▶ START on the focus card
+        else if (view.card == CARD_FOCUS && view.next < 0 && !focus.active && sx >= FC_BTN_X - 4 &&
+                 sx < FC_BTN_X + FC_BTN_W + 4 && sy >= FC_BTN_Y - 6) {
+          startFocus(settings.focusMin);  // big ▶ START on the focus card
         } else {
-          advanceCard();
+          advanceCard(sx < CARD_X + CARD_W / 2 ? -1 : 1);  // left half = back, right half = forward
           cardSince = now;
         }
       } else if (sy > CAT_Y + 30) {
@@ -459,20 +460,6 @@ static void handleTouch(uint32_t now) {
       settingsSince = now;
       if (sx > 150 && sy < 40) {
         screen = Screen::Main;
-      } else if (sy >= FO_Y && sy < FO_Y + FO_H) {
-        if (sx >= FO_BTN_X) {  // START / STOP
-          if (focus.active) stopFocus();
-          else {
-            startFocus(settings.focusMin);
-            screen = Screen::Main;
-          }
-        } else if (!focus.active) {  // tap the length to cycle 15 / 25 / 45 / 60
-          int i = 0;
-          while (i < 4 && FOCUS_CHOICES[i] != settings.focusMin) i++;
-          settings.focusMin = FOCUS_CHOICES[(i + 1) % 4];
-          saveSettingsSoon();
-        }
-        settingsDirty = true;
       } else if (sy > BR_Y - 6) {  // ◀ / ▶ step one block
         if (sx < BR_BAR_X) setBright(settings.bright - 25);
         else if (sx >= BR_BAR_X + BR_BAR_W) setBright(settings.bright + 25);
@@ -534,7 +521,6 @@ void loop() {
   bool known = false;
   for (int i = 0; i < n; i++) known |= ids[i] == view.card;
   if (n > 0 && !known) view.card = ids[0], view.next = -1;  // its card was switched off
-  view.lastCard = n > 0 && view.card == ids[n - 1];
   if (n > 1 && view.next < 0 && now - cardSince > settings.cycle * 1000UL) advanceCard();
   if (view.next >= 0) {
     view.slide += dt / 0.45f;

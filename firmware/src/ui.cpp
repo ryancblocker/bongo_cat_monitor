@@ -142,12 +142,12 @@ static void hpBar(Frame& f, int x, int y, int w, int pct) {
   if (fw > 2) f.fill(x + 2, y + 2, fw, 2, lerp565(c565(c), c565(0xFFFFFF), 90));  // shine
 }
 
-// ▶ while there's a next card, ◀ on the last one (it wraps back to the first); nudges sideways
-static void nextArrow(Frame& f, bool last, uint32_t t) {
+// ◀ ▶ in the bottom corners: tapping the left / right half of the card goes back / forward
+static void cardArrows(Frame& f, uint32_t t) {
   int nudge = ((t / 450) & 1) ? 2 : 0;
   int y = CARD_Y + CARD_H - 12;
-  if (!last) f.text(RIGHT, CARD_X + CARD_W - 20 + nudge, y, PX8, INK);
-  else f.text(LEFT, CARD_X + 12 - nudge, y, PX8, INK);
+  f.text(LEFT, CARD_X + 12 - nudge, y, PX8, INK);
+  f.text(RIGHT, CARD_X + CARD_W - 20 + nudge, y, PX8, INK);
 }
 
 static const char* const THERMO[] = {  // 5x10, drawn at 1x next to temperatures
@@ -191,7 +191,7 @@ static void weatherCard(Frame& f, int x, int y) {
   char date[24];
   strlcpy(date, clk.date, sizeof date);
   upper(date);
-  f.text(date, x + 12, y + 74, PX8, SUB, AL_L, CARD_W - 40);
+  f.text(date, x + 28, y + 74, PX8, SUB, AL_L, CARD_W - 56);  // between the ◀ ▶ arrows
 }
 
 static void pcCard(Frame& f, int x, int y) {
@@ -233,35 +233,45 @@ static void pcCard(Frame& f, int x, int y) {
   row("WPM", pc.wpm * 100 / 120, v, -1);
 }
 
+// EXP bar: how far this focus session has got toward the next level
+static void expBar(Frame& f, int x, int y, int pct) {
+  f.text("EXP", x, y + 4, PX8, SUB);
+  int bx = x + 28, w = CARD_W - 52, fw = ev((w - 4) * pct / 100);
+  f.fill(bx, y, w, 8, c565(INK));
+  f.fill(bx + 2, y + 2, w - 4, 4, c565(0x485068));
+  f.fill(bx + 2, y + 2, fw, 4, c565(0x58A0F0));
+  if (fw > 2) f.fill(bx + 2, y + 2, fw, 2, c565(0x98C8F8));  // shine
+}
+
 static void focusCard(Frame& f, int x, int y, uint32_t now) {
   char buf[24];
-  f.text("FOCUS", x + 12, y + 16, PX8, INK);
-  snprintf(buf, sizeof buf, "Lv%d %s Lv%d", catLevel, RIGHT, catLevel + 1);
-  f.text(buf, x + CARD_W - 12, y + 16, PX8, SUB, AL_R);
+  int pct = 0;
+  if (focus.active && focus.durMs) pct = (int)min<uint32_t>((now - focus.startMs) * 100 / focus.durMs, 100);
   if (focus.active) {
     uint32_t left = focus.leftSec(now);
     snprintf(buf, sizeof buf, "%02lu:%02lu", (unsigned long)(left / 60), (unsigned long)(left % 60));
-    f.text(buf, x + CARD_W / 2, y + 38, PX16, INK, AL_C);
-    // EXP bar fills as the session goes
-    uint32_t done = focus.durMs ? (now - focus.startMs) * 100 / focus.durMs : 0;
-    int bx = x + 30, w = CARD_W - 42, fw = ev((w - 4) * (int)min<uint32_t>(done, 100) / 100);
-    f.fill(bx, y + 54, w, 8, c565(INK));
-    f.fill(bx + 2, y + 56, w - 4, 4, c565(0x485068));
-    f.fill(bx + 2, y + 56, fw, 4, c565(0x58A0F0));
-    f.text("KEEP GOING!", x + CARD_W - 12, y + 74, PX8, SUB, AL_R);
   } else {
-    snprintf(buf, sizeof buf, "%02d:00", settings.focusMin);
-    f.text(buf, x + CARD_W / 2, y + 38, PX16, SUB, AL_C);
-    f.text("FINISH", x + 30, y + 62, PX8, SUB);
-    f.text("= LV UP", x + 30, y + 74, PX8, SUB);
-    // ▶ START button (the only tappable spot on the card)
-    int bx = x + (FC_BTN_X - CARD_X);
-    f.fill(bx + 2, FC_BTN_Y, FC_BTN_W - 4, FC_BTN_H, c565(INK));
-    f.fill(bx, FC_BTN_Y + 2, FC_BTN_W, FC_BTN_H - 4, c565(INK));
-    f.fill(bx + 2, FC_BTN_Y + 2, FC_BTN_W - 4, FC_BTN_H - 4, c565(GOLD));
-    f.fill(bx + 2, FC_BTN_Y + FC_BTN_H - 6, FC_BTN_W - 4, 4, c565(0xD8A020));  // pressed-edge shade
-    snprintf(buf, sizeof buf, "%s START", RIGHT);
-    f.text(buf, bx + FC_BTN_W / 2, FC_BTN_Y + 12, PX8, INK, AL_C);
+    snprintf(buf, sizeof buf, "FOCUS %dM", settings.focusMin);
+  }
+  f.text(focus.active ? "FOCUS" : buf, x + 12, y + 16, PX8, INK);
+  char lv[24];
+  snprintf(lv, sizeof lv, "Lv%d %s Lv%d", catLevel, RIGHT, catLevel + 1);
+  f.text(lv, x + CARD_W - 12, y + 16, PX8, SUB, AL_R);
+  expBar(f, x + 12, y + 28, pct);
+  if (focus.active) {
+    f.text(buf, x + CARD_W / 2, y + 56, PX16, INK, AL_C);  // big countdown
+    f.text("KEEP GOING!", x + CARD_W / 2, y + 74, PX8, SUB, AL_C);
+  } else {
+    // big START button
+    int bx = x + (FC_BTN_X - CARD_X), by = FC_BTN_Y, w = FC_BTN_W, h = FC_BTN_H;
+    f.fill(bx + 2, by, w - 4, h, c565(INK));
+    f.fill(bx, by + 2, w, h - 4, c565(INK));
+    f.fill(bx + 2, by + 2, w - 4, h - 4, c565(GOLD));
+    f.fill(bx + 2, by + 2, w - 4, 2, c565(0xFCE088));      // top highlight
+    f.fill(bx + 2, by + h - 6, w - 4, 4, c565(0xD8A020));  // pressed-edge shade
+    int tx = bx + 22, ty = by + h / 2 - 2;                 // ▶ drawn in 2 px steps
+    for (int i = 0; i < 6; i++) f.fill(tx + i * 2, ty - 10 + i * 2, 2, 20 - i * 4, c565(INK));
+    f.text("START", bx + w / 2 + 12, ty, PX16, INK, AL_C);
   }
 }
 
@@ -327,7 +337,7 @@ void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
     card(f, v.card, CARD_X - dx);
     if (v.next >= 0) card(f, v.next, CARD_X + v.dir * CARD_W - dx);
     f.clearClip();
-    if (v.nCards > 1 && v.next < 0) nextArrow(f, v.lastCard, v.t);
+    if (v.nCards > 1 && v.next < 0) cardArrows(f, v.t);
   }
 
   // header bar
@@ -362,37 +372,24 @@ void drawSettings(Frame& f, uint32_t t) {
   f.text("BACK", 180, 20, PX8, INK);
 
   if (configUrl[0]) {
-    box(f, 50, 40, 140, 140);
-    f.qr(configUrl, 60, 50, 120);
-    box(f, 6, 184, 228, 34);
-    f.text("SCAN TO PICK YOUR CAT!", SW / 2, 201, PX8, INK, AL_C);
+    box(f, 44, 46, 152, 152);
+    f.qr(configUrl, 54, 56, 132);
+    box(f, 6, 206, 228, 34);
+    f.text("SCAN TO PICK YOUR CAT!", SW / 2, 223, PX8, INK, AL_C);
   } else {
-    box(f, 6, 60, 228, 76);
-    f.text("OPEN BONGO CAT", SW / 2, 82, PX8, INK, AL_C);
-    f.text("ON YOUR PC. THE", SW / 2, 98, PX8, INK, AL_C);
-    f.text("CODE SHOWS UP HERE.", SW / 2, 114, PX8, INK, AL_C);
+    box(f, 6, 84, 228, 76);
+    f.text("OPEN BONGO CAT", SW / 2, 106, PX8, INK, AL_C);
+    f.text("ON YOUR PC. THE", SW / 2, 122, PX8, INK, AL_C);
+    f.text("CODE SHOWS UP HERE.", SW / 2, 138, PX8, INK, AL_C);
   }
-
-  // focus: [FOCUS 25 MIN] [START] (tap the length to change it)
-  box(f, 6, FO_Y, FO_BTN_X - 8, FO_H);
-  char fm[20];
-  if (focus.active) {
-    uint32_t left = focus.leftSec(t);
-    snprintf(fm, sizeof fm, "FOCUS %02lu:%02lu", (unsigned long)(left / 60), (unsigned long)(left % 60));
-  } else {
-    snprintf(fm, sizeof fm, "FOCUS %dM", settings.focusMin);
-  }
-  f.text(fm, 18, FO_Y + 18, PX8, INK);
-  box(f, FO_BTN_X, FO_Y, SW - 6 - FO_BTN_X, FO_H);
-  f.text(focus.active ? "STOP" : "START", FO_BTN_X + (SW - 6 - FO_BTN_X) / 2, FO_Y + 18, PX8, focus.active ? 0xE84858 : INK, AL_C);
 
   // brightness: [<] [##########] [>]
-  box(f, 6, 262, 228, 52);
+  box(f, 6, BR_Y - 18, 228, 52);
   int seg = (int)roundf((settings.bright - 10) * 10.0f / 245);
   char pct[8];
   snprintf(pct, sizeof pct, "%d%%", (settings.bright * 100 + 127) / 255);
-  f.text("BRIGHTNESS", 18, 276, PX8, INK);
-  f.text(pct, 222, 276, PX8, SUB, AL_R);
+  f.text("BRIGHTNESS", 18, BR_Y - 4, PX8, INK);
+  f.text(pct, 222, BR_Y - 4, PX8, SUB, AL_R);
   f.text(LEFT, BR_MINUS_X + 6, BR_Y + 16, PX8, INK);
   f.text(RIGHT, BR_PLUS_X + 18, BR_Y + 16, PX8, INK);
   for (int i = 0; i < 10; i++) {
