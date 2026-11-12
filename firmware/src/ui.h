@@ -13,14 +13,17 @@ constexpr int BR_Y = 280, BR_MINUS_X = 14, BR_BAR_X = 54, BR_BAR_W = 132, BR_PLU
 constexpr int FO_Y = 222, FO_H = 36, FO_BTN_X = 156;
 static const uint8_t FOCUS_CHOICES[] = {15, 25, 45, 60};
 
-enum Card : uint8_t { CARD_WEATHER = 0, CARD_PC = 1 };
+enum Card : uint8_t { CARD_WEATHER = 0, CARD_PC = 1, CARD_FOCUS = 2 };
+// START button on the focus card (screen coordinates)
+constexpr int FC_BTN_X = CARD_X + CARD_W - 88, FC_BTN_Y = CARD_Y + 54, FC_BTN_W = 78, FC_BTN_H = 26;
 
 struct MainView {
   int card = CARD_WEATHER;  // card showing (or sliding out)
   int next = -1;            // card sliding in, -1 = none
   float slide = 0;          // 0..1 transition progress
   int dir = 1;              // +1 slide left (to the PC card), -1 slide right (back to weather)
-  int nCards = 2;
+  int nCards = 3;
+  bool lastCard = false;    // showing the last card in the cycle (its arrow points back)
   uint32_t t = 0;           // millis(), for blinking arrows
 };
 

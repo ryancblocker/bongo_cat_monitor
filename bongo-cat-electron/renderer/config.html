@@ -131,6 +131,7 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
     <div class="box">
       <div class="row"><div class="t">WEATHER CARD<span>TEMP, SKY, HIGH AND LOW</span></div><button class="sw" id="showWeatherCard"></button></div>
       <div class="row"><div class="t">PC CARD<span>CPU, GPU, RAM, WPM</span></div><button class="sw" id="showPcCard"></button></div>
+      <div class="row"><div class="t">FOCUS CARD<span>TIMER WITH A START BUTTON</span></div><button class="sw" id="showFocusCard"></button></div>
       <div class="row" style="display:block">
         <div class="lbl">SWITCH EVERY <span id="cycleV"></span></div>
         <div class="seg" style="grid-template-columns:repeat(4,1fr)" id="cycleSec">
@@ -276,7 +277,7 @@ function render() {
   seg('sleepTimeout', S.sleepTimeout);
   seg('timeFormat', S.timeFormat);
   seg('tempUnit', S.tempUnit);
-  for (const k of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) sw(k, S[k]);
+  for (const k of ['showWeatherCard', 'showPcCard', 'showFocusCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) sw(k, S[k]);
 }
 
 function renderFocus() {
@@ -310,10 +311,11 @@ $('demoBtn').onclick = async () => {
 };
 $('focusStop').onclick = () => save({ focus: 0 });
 for (const id of ['cycleSec', 'sleepTimeout', 'focusMin']) for (const b of $(id).children) b.onclick = () => save({ [id]: +b.dataset.v });
-for (const id of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) {
+const CARDS = ['showWeatherCard', 'showPcCard', 'showFocusCard'];
+for (const id of [...CARDS, 'showCpuTemp', 'showGpu', 'startAtLogin']) {
   $(id).onclick = () => {
     const next = S[id] === false;
-    if ((id === 'showWeatherCard' && !next && S.showPcCard === false) || (id === 'showPcCard' && !next && S.showWeatherCard === false)) {
+    if (CARDS.includes(id) && !next && CARDS.filter(k => k !== id && S[k] !== false).length === 0) {
       return toast('KEEP ONE CARD ON', true);
     }
     save({ [id]: next });

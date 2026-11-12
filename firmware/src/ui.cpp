@@ -141,11 +141,11 @@ static void hpBar(Frame& f, int x, int y, int w, int pct) {
   if (fw > 2) f.fill(x + 2, y + 2, fw, 2, lerp565(c565(c), c565(0xFFFFFF), 90));  // shine
 }
 
-// ▶ on the weather card (PC stats are next), ◀ on the PC card; nudges sideways
-static void nextArrow(Frame& f, int card, uint32_t t) {
+// ▶ while there's a next card, ◀ on the last one (it wraps back to the first); nudges sideways
+static void nextArrow(Frame& f, bool last, uint32_t t) {
   int nudge = ((t / 450) & 1) ? 2 : 0;
   int y = CARD_Y + CARD_H - 12;
-  if (card == CARD_WEATHER) f.text(RIGHT, CARD_X + CARD_W - 20 + nudge, y, PX8, INK);
+  if (!last) f.text(RIGHT, CARD_X + CARD_W - 20 + nudge, y, PX8, INK);
   else f.text(LEFT, CARD_X + 12 - nudge, y, PX8, INK);
 }
 
@@ -233,21 +233,35 @@ static void pcCard(Frame& f, int x, int y) {
 }
 
 static void focusCard(Frame& f, int x, int y, uint32_t now) {
-  uint32_t left = focus.leftSec(now);
   char buf[24];
   f.text("FOCUS", x + 12, y + 16, PX8, INK);
   snprintf(buf, sizeof buf, "Lv%d %s Lv%d", catLevel, RIGHT, catLevel + 1);
   f.text(buf, x + CARD_W - 12, y + 16, PX8, SUB, AL_R);
-  snprintf(buf, sizeof buf, "%02lu:%02lu", (unsigned long)(left / 60), (unsigned long)(left % 60));
-  f.text(buf, x + CARD_W / 2, y + 40, PX16, INK, AL_C);
-  // progress: an EXP bar that fills as the session goes
-  uint32_t done = focus.durMs ? (now - focus.startMs) * 100 / focus.durMs : 0;
-  int w = CARD_W - 24, fw = ev((w - 4) * (int)min<uint32_t>(done, 100) / 100);
-  f.fill(x + 12, y + 58, w, 8, c565(INK));
-  f.fill(x + 14, y + 60, w - 4, 4, c565(0x485068));
-  f.fill(x + 14, y + 60, fw, 4, c565(0x58A0F0));
-  f.text("EXP", x + 12, y + 74, PX8, SUB);
-  f.text("KEEP GOING!", x + CARD_W - 12, y + 74, PX8, SUB, AL_R);
+  if (focus.active) {
+    uint32_t left = focus.leftSec(now);
+    snprintf(buf, sizeof buf, "%02lu:%02lu", (unsigned long)(left / 60), (unsigned long)(left % 60));
+    f.text(buf, x + CARD_W / 2, y + 38, PX16, INK, AL_C);
+    // EXP bar fills as the session goes
+    uint32_t done = focus.durMs ? (now - focus.startMs) * 100 / focus.durMs : 0;
+    int bx = x + 30, w = CARD_W - 42, fw = ev((w - 4) * (int)min<uint32_t>(done, 100) / 100);
+    f.fill(bx, y + 54, w, 8, c565(INK));
+    f.fill(bx + 2, y + 56, w - 4, 4, c565(0x485068));
+    f.fill(bx + 2, y + 56, fw, 4, c565(0x58A0F0));
+    f.text("KEEP GOING!", x + CARD_W - 12, y + 74, PX8, SUB, AL_R);
+  } else {
+    snprintf(buf, sizeof buf, "%02d:00", settings.focusMin);
+    f.text(buf, x + CARD_W / 2, y + 38, PX16, SUB, AL_C);
+    f.text("FINISH", x + 30, y + 62, PX8, SUB);
+    f.text("= LV UP", x + 30, y + 74, PX8, SUB);
+    // ▶ START button (the only tappable spot on the card)
+    int bx = x + (FC_BTN_X - CARD_X);
+    f.fill(bx + 2, FC_BTN_Y, FC_BTN_W - 4, FC_BTN_H, c565(INK));
+    f.fill(bx, FC_BTN_Y + 2, FC_BTN_W, FC_BTN_H - 4, c565(INK));
+    f.fill(bx + 2, FC_BTN_Y + 2, FC_BTN_W - 4, FC_BTN_H - 4, c565(GOLD));
+    f.fill(bx + 2, FC_BTN_Y + FC_BTN_H - 6, FC_BTN_W - 4, 4, c565(0xD8A020));  // pressed-edge shade
+    snprintf(buf, sizeof buf, "%s START", RIGHT);
+    f.text(buf, bx + FC_BTN_W / 2, FC_BTN_Y + 12, PX8, INK, AL_C);
+  }
 }
 
 static void levelUpBox(Frame& f, uint32_t now) {
@@ -265,7 +279,8 @@ static void levelUpBox(Frame& f, uint32_t now) {
 
 static void card(Frame& f, int which, int x) {
   if (which == CARD_WEATHER) weatherCard(f, x, CARD_Y);
-  else pcCard(f, x, CARD_Y);
+  else if (which == CARD_PC) pcCard(f, x, CARD_Y);
+  else focusCard(f, x, CARD_Y, millis());
 }
 
 void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
@@ -300,9 +315,6 @@ void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
   // card: level-up box, focus timer, or the cycling weather / PC cards
   if (f.vis(CARD_Y, CARD_H) && v.t < levelUpUntil) {
     levelUpBox(f, v.t);
-  } else if (f.vis(CARD_Y, CARD_H) && focus.active) {
-    box(f, CARD_X, CARD_Y, CARD_W, CARD_H);
-    focusCard(f, CARD_X, CARD_Y, v.t);
   } else if (f.vis(CARD_Y, CARD_H) && v.nCards > 0) {
     box(f, CARD_X, CARD_Y, CARD_W, CARD_H);
     f.setClip(CARD_X + 6, CARD_Y + 4, CARD_W - 12, CARD_H - 8);
@@ -311,7 +323,7 @@ void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
     card(f, v.card, CARD_X - dx);
     if (v.next >= 0) card(f, v.next, CARD_X + v.dir * CARD_W - dx);
     f.clearClip();
-    if (v.nCards > 1 && v.next < 0) nextArrow(f, v.card, v.t);
+    if (v.nCards > 1 && v.next < 0) nextArrow(f, v.lastCard, v.t);
   }
 
   // header bar
@@ -338,8 +350,9 @@ void drawSettings(Frame& f, uint32_t t) {
   f.fill(0, f.oy, SW, STRIP, c565(HDR));
   f.ditherRect(0, f.oy, SW, STRIP, c565(0x2C3658));
 
-  box(f, 6, 6, 140, 28);
-  f.text("OPTIONS", 20, 20, PX8, INK);
+  // plain title (not a box, so it doesn't read as a button)
+  f.text("OPTIONS", 14, 22, PX16, INK);
+  f.text("OPTIONS", 12, 20, PX16, PAPER);
   box(f, 152, 6, 82, 28);
   f.text(LEFT, 166, 20, PX8, INK);
   f.text("BACK", 180, 20, PX8, INK);

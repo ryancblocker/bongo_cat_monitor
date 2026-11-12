@@ -66,7 +66,7 @@ static const DemoStep STEPS[] = {
     {3000, "HELLO!"}, {3000, "TYPING"}, {3000, "TYPING FAST"}, {3500, "PC STATS"},
     {2500, "SOME SUN"}, {2500, "CLOUDY"}, {2500, "RAIN"}, {3500, "STORM"}, {2500, "SNOW"},
     {2500, "FOG"}, {3000, "STARRY NIGHT"}, {2500, "PET ME!"}, {2200, "YAWN..."}, {3500, "ZZZ..."},
-    {3000, "FOCUS TIMER"}, {4800, "LEVEL UP!"},
+    {3000, "FOCUS TIMER"}, {5200, "LEVEL UP!"},
     {1100, "WHITE"}, {1100, "BLACK"}, {1100, "GREY"}, {1100, "ORANGE TABBY"}, {1100, "CALICO"},
     {1100, "TUXEDO"}, {1100, "SIAMESE"}, {1100, "CREAM"}, {1600, "ORIGINAL 8-BIT"}, {3000, "OPTIONS"},
 };
@@ -135,7 +135,7 @@ static void demoTick(uint32_t now) {
     if (s >= 4 && s <= 9) demoWeather(codes[s - 4], true);
     if (s == 10) demoWeather(0, false);
     if (s == 11) { demoWeather(0, true); cat.poke(now); }
-    if (s == 14) { focus.active = true; focus.startMs = now - 7 * 60000UL; focus.durMs = 25 * 60000UL; }
+    if (s == 14) { view.card = CARD_FOCUS; focus.active = true; focus.startMs = now - 7 * 60000UL; focus.durMs = 25 * 60000UL; }
     if (s == STEP_LEVELUP) { focus = demo.fo; levelUp.start(now, catLevel, catLevel + 1); levelUpReal = false; }
     if (s >= STEP_COATS && s < STEP_8BIT) { settings.style = STYLE_HD; settings.coat = s - STEP_COATS; cat.stop(now); }
     if (s == STEP_8BIT) settings.style = STYLE_EIGHTBIT;
@@ -177,6 +177,11 @@ static void startFocus(int minutes) {
   focus.active = true;
   focus.startMs = millis();
   focus.durMs = (uint32_t)minutes * 60000UL;
+  if (settings.cards & 4) {  // jump to the focus card
+    view.card = CARD_FOCUS;
+    view.next = -1;
+    cardSince = millis();
+  }
   Serial.printf("EVT:focus=start|min=%d|left=%d\n", minutes, minutes * 60);
 }
 
@@ -197,10 +202,11 @@ static void saveSettings() {
 void saveSettingsSoon() { saveAt = millis() + 1500; }
 void applyBrightness() { lcd.setBrightness(max<uint8_t>(settings.bright, 10)); }
 
-static int enabledCards(int out[2]) {
+static int enabledCards(int out[3]) {
   int n = 0;
   if (settings.cards & 1) out[n++] = CARD_WEATHER;
   if (settings.cards & 2) out[n++] = CARD_PC;
+  if (settings.cards & 4) out[n++] = CARD_FOCUS;
   return n;
 }
 
@@ -241,7 +247,7 @@ static void handleSet(const String& s) {
     applyBrightness();
   }
   if ((v = field(s, "cycle")).length()) settings.cycle = constrain(v.toInt(), 3, 60);
-  if ((v = field(s, "cards")).length()) settings.cards = constrain(v.toInt(), 0, 3);
+  if ((v = field(s, "cards")).length()) settings.cards = constrain(v.toInt(), 0, 7);
   if ((v = field(s, "h24")).length()) settings.h24 = v.toInt() != 0;
   if ((v = field(s, "sleep")).length()) settings.sleepMin = constrain(v.toInt(), 1, 60);
   if ((v = field(s, "focus")).length()) settings.focusMin = constrain(v.toInt(), 5, 120);
@@ -267,7 +273,7 @@ static void handleLine(String line) {
   else if (line == "SHOT") shotPending = true;
   else if (line == "DEMO") demoStart();
   else if (line == "DEMO:0") demoStop();
-  else if (line == "LEVELUP") { levelUp.start(now, catLevel, catLevel + 1); levelUpReal = false; }
+  else if (line == "LEVELUP") { levelUp.start(now, catLevel, catLevel + 1); levelUpReal = false; screen = Screen::Main; }
   else if (line.startsWith("FOCUS:")) {
     int m = line.substring(6).toInt();
     if (m > 0) startFocus(m);
@@ -366,11 +372,21 @@ static void setupTouch() {
   p.end();
 }
 
+static void startSlide(int to);
+static void advanceCard() {
+  int ids[3], n = enabledCards(ids);
+  if (n < 2) return;
+  int i = 0;
+  while (i < n && ids[i] != view.card) i++;
+  startSlide(ids[(i + 1) % n]);
+}
+
 static void startSlide(int to) {
   if (to == view.card || view.next >= 0) return;
   view.next = to;
   view.slide = 0;
-  view.dir = to == CARD_PC ? 1 : -1;  // PC card comes in from the right, weather from the left
+  int ids[3], n = enabledCards(ids);
+  view.dir = (n > 0 && to == ids[0]) ? -1 : 1;  // wrapping back to the first card slides the other way
 }
 
 static void setBright(int b) {
@@ -415,9 +431,10 @@ static void handleTouch(uint32_t now) {
         settingsSince = now;
       } else if (sy >= CARD_Y && sy < CARD_Y + CARD_H) {
         if (now < levelUpUntil) levelUpUntil = 0;  // tap closes the level-up box
-        else if (!focus.active) {
-          int ids[2], n = enabledCards(ids);
-          if (n > 1) startSlide(view.card == ids[0] ? ids[1] : ids[0]);
+        else if (view.card == CARD_FOCUS && !focus.active && sx >= FC_BTN_X - 6 && sy >= FC_BTN_Y - 6) {
+          startFocus(settings.focusMin);  // ▶ START on the focus card
+        } else {
+          advanceCard();
           cardSince = now;
         }
       } else if (sy > CAT_Y + 30) {
@@ -497,12 +514,13 @@ void loop() {
   last = now;
 
   // cards: which are on, auto-advance, slide animation
-  int ids[2], n = enabledCards(ids);
+  int ids[3], n = enabledCards(ids);
   view.nCards = n;
-  if (n == 1) view.card = ids[0], view.next = -1;
-  if (n == 2 && view.next < 0 && now - cardSince > settings.cycle * 1000UL) {
-    startSlide(view.card == ids[0] ? ids[1] : ids[0]);
-  }
+  bool known = false;
+  for (int i = 0; i < n; i++) known |= ids[i] == view.card;
+  if (n > 0 && !known) view.card = ids[0], view.next = -1;  // its card was switched off
+  view.lastCard = n > 0 && view.card == ids[n - 1];
+  if (n > 1 && view.next < 0 && now - cardSince > settings.cycle * 1000UL) advanceCard();
   if (view.next >= 0) {
     view.slide += dt / 0.45f;
     if (view.slide >= 1) {
@@ -519,6 +537,7 @@ void loop() {
     saveLevel();
     levelUp.start(now, catLevel - 1, catLevel);
     levelUpReal = true;
+    screen = Screen::Main;  // the level-up plays full screen, even from OPTIONS
     cat.celebrate(now);
     Serial.printf("EVT:focus=done|level=%d\n", catLevel);
   }

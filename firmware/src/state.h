@@ -8,7 +8,7 @@ struct Settings {          // persisted in NVS ("bongo")
   char name[17] = "";      // shown on a tag above the cat ("" = hidden)
   uint8_t bright = 200;    // backlight 10..255
   uint8_t cycle = 8;       // seconds per card (3..60)
-  uint8_t cards = 3;       // bit 0 weather card, bit 1 PC card
+  uint8_t cards = 7;       // bit 0 weather card, bit 1 PC card, bit 2 focus card
   bool h24 = false;
   uint8_t sleepMin = 5;    // minutes without typing before the cat dozes off
   uint8_t focusMin = 25;   // focus session length (OPTIONS screen / phone)

@@ -13,6 +13,7 @@ const RULES = {
     cycleSec: v => int(v, 3, 60),
     showWeatherCard: v => typeof v === 'boolean' ? v : undefined,
     showPcCard: v => typeof v === 'boolean' ? v : undefined,
+    showFocusCard: v => typeof v === 'boolean' ? v : undefined,
     timeFormat: v => (v === '12' || v === '24') ? v : undefined,
     sleepTimeout: v => int(v, 1, 60),
     weatherLocation: v => typeof v === 'string' ? v.trim().slice(0, 60) : undefined,
@@ -48,7 +49,7 @@ function validate(changes) {
 
 /** "SET:style=cartoon|cat=classic|..." from the full settings object. */
 function setLine(s) {
-    const cards = (s.showWeatherCard !== false ? 1 : 0) | (s.showPcCard !== false ? 2 : 0);
+    const cards = (s.showWeatherCard !== false ? 1 : 0) | (s.showPcCard !== false ? 2 : 0) | (s.showFocusCard !== false ? 4 : 0);
     return 'SET:' + [
         `style=${STYLES.includes(s.style) ? s.style : 'hd'}`,
         `coat=${COATS.includes(s.coat) ? s.coat : 'white'}`,

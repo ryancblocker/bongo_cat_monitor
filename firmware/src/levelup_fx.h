@@ -1,4 +1,4 @@
-// Full-screen anime-style LEVEL UP (about 4.6 s):
+// Full-screen anime-style LEVEL UP (about 5 s), see levelup_fx.cpp for the beats:
 //   impact flash -> rotating speed lines on deep purple -> the cat rises with a pulsing
 //   gold aura, energy sparks and a shockwave -> "LEVEL" slams down, "UP!" slams up with
 //   screen shake -> "Lv 2 > Lv 3" ticks over with a burst -> name banner -> flash out.
@@ -8,7 +8,7 @@
 
 class LevelUpFx {
  public:
-  static constexpr uint32_t DURATION = 4600;
+  static constexpr uint32_t DURATION = 5000;
   void start(uint32_t now, uint16_t fromLv, uint16_t toLv);
   bool active(uint32_t now) const { return on && now - t0 < DURATION; }
   bool justEnded(uint32_t now);  // true once, right after it finishes
