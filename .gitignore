@@ -181,3 +181,5 @@ pyrightconfig.json
 # PlatformIO
 .pio/
 .vscode/
+tools/out/
+firmware/.pio/
