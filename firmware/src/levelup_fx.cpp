@@ -1,18 +1,24 @@
-// Anime LEVEL UP, about 5 s. Beats:
-//   0.00 flash            0.12 crouch            0.35 LAUNCH (fists up, afterimages, energy trail)
-//   0.95 hang + power-up  1.45 DIVE              1.70 IMPACT: superhero landing on the desk
-//   (impact frame: black + white silhouette, then flash, heavy shake, cracks, debris, dust)
-//   1.95 "LEVEL" slams    2.15 "UP!" slams       2.45 level counter, 2.85 ticks over
-//   3.30 happy hop        3.40 name banner       4.60 flash out
-// Vertical speed lines stream the whole time: down while rising, up while diving.
+// Anime LEVEL UP with the full-body cat, about 5.4 s. Beats:
+//   0.00 flash
+//   0.12 RISE      the cat rockets up from below the screen in its flying pose (fist up),
+//                  riding a thrust flare, afterimages trailing; vertical speed lines stream down
+//   0.80 PEAK      hovers, trembling, golden aura
+//   1.30 FALL      snaps into the landing pose and drops fist-first; the lines reverse
+//   1.62 IMPACT    punch-slam into the ground: impact frame (black + white silhouette + light
+//                  rays), flash, heavy shake, the ground cracks open beneath it, rubble, dust
+//   1.90 "LEVEL" slams in, 2.10 "UP!" slams in
+//   2.40 the level box rises: EXP bar fills, flashes, the number rolls over, "+1" pops
+//   3.40 name line        4.95 flash out
 #include "levelup_fx.h"
 
 #include <math.h>
 
-static const uint32_t INK = 0x202838, GOLD = 0xF8C038, ORANGE = 0xF09830, PAPER = 0xF8F8F0;
-static const float T_CROUCH = 0.12f, T_LAUNCH = 0.35f, T_HANG = 0.95f, T_DIVE = 1.45f, T_IMPACT = 1.70f;
-static const int AIR = -118;            // how high the cat flies (px above its desk spot)
-static const int IMPACT_X = 172, IMPACT_Y = 268;  // where the fist hits the desk
+static const uint32_t INK = 0x202838, GOLD = 0xF8C038, ORANGE = 0xF09830, PAPER = 0xF8F8F0, RIM = 0x98B0D0;
+static const float T_RISE = 0.12f, T_PEAK = 0.80f, T_FALL = 1.30f, T_IMPACT = 1.62f;
+static const int GROUND_Y = 268;                  // the landing pose's feet stand here
+static const int PAW_X = 60;                       // where the fist hits
+static const int FLY_START = 290, FLY_PEAK = -14;  // flying pose: off the bottom -> whole cat in view
+static const int FALL_FROM = -200;                 // landing pose starts its drop up here
 
 void LevelUpFx::start(uint32_t now, uint16_t fromLv, uint16_t toLv) {
   on = true;
@@ -33,7 +39,7 @@ bool LevelUpFx::justEnded(uint32_t now) {
 
 static float clamp01(float v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 static float easeOutCubic(float p) { return 1 - powf(1 - p, 3); }
-static float easeInQuad(float p) { return p * p; }
+static float easeInCubic(float p) { return p * p * p; }
 static float easeOutBack(float p) {
   const float c1 = 2.4f, c3 = c1 + 1;
   return 1 + c3 * powf(p - 1, 3) + c1 * powf(p - 1, 2);
@@ -52,206 +58,211 @@ static void title(Frame& f, const char* s, int x, int cy, const uint8_t* font, u
   f.text(s, x, cy, font, fill, AL_C);
 }
 
-// cat height above its desk spot over time (negative = up)
-static float catDy(float t) {
-  if (t < T_CROUCH) return 0;
-  if (t < T_LAUNCH) return 8 * sinf((t - T_CROUCH) / (T_LAUNCH - T_CROUCH) * (float)M_PI / 2);  // squat
-  if (t < T_HANG) return 8 + (AIR - 8) * easeOutCubic((t - T_LAUNCH) / (T_HANG - T_LAUNCH));
-  if (t < T_DIVE) return AIR + 4 * sinf((t - T_HANG) * 14);  // hover, trembling with power
-  if (t < T_IMPACT) return AIR * (1 - easeInQuad((t - T_DIVE) / (T_IMPACT - T_DIVE)));
-  if (t > 3.3f && t < 3.6f) return -4 * sinf((t - 3.3f) / 0.3f * (float)M_PI);  // happy bounce (stays on the desk)
-  return 0;
-}
-
-// how far the speed lines have scrolled by time t (+ = down): integral of a piecewise speed,
-// so they speed up, slow down and reverse smoothly instead of jumping
+// speed-line scroll (+ = down): integral of a piecewise speed so the lines accelerate, slow
+// and reverse smoothly instead of jumping
 static float linePos(float t) {
   struct Seg { float a, b, v; };
-  static const Seg segs[] = {{0, T_LAUNCH, 60}, {T_LAUNCH, T_HANG, 1300}, {T_HANG, T_DIVE, 160}, {T_DIVE, T_IMPACT, -1800}};
+  static const Seg segs[] = {{0, T_RISE, 80}, {T_RISE, T_PEAK, 1500}, {T_PEAK, T_FALL, 160}, {T_FALL, T_IMPACT, -2200}};
   float pos = 0;
   for (const Seg& s : segs) pos += s.v * (min(t, s.b) - s.a > 0 ? min(t, s.b) - s.a : 0);
   return pos;
 }
 
-static float catVel(float t) { return (catDy(t + 0.01f) - catDy(t)) / 0.01f; }  // px/s, + = down
-
-// thrust flare under the cat while it's airborne: a hot band along the bottom of the body
-// (which also hides where the body would meet the desk) and jagged streaks shooting away
-// from the direction of travel, flickering every frame
-static void energyTrail(Frame& f, int dy, float t, bool diving) {
-  uint32_t flick = (uint32_t)(t * 30);
-  for (int hx = 14; hx <= 114; hx += 2) {
-    int x = 2 * hx;
-    int y = (CAT_Y - 30 + dy + 2 * (int)(0.246f * hx + 59.8f + 2)) & ~1;
-    f.fill(x, y - 4, 4, 10, c565(0xFFF8D0));  // white-hot core band
-    if (diving) continue;  // diving: the afterimages carry the motion; streaks would cover the face
-    uint32_t h = hash(hx * 131 + flick);
-    int len = 10 + (int)(h % 46);
-    if ((hx / 2) % 2 == 0) len = len * 2 / 3;
-    int dir = diving ? -1 : 1;  // rising: flare points down; diving: it trails above
-    int y0 = diving ? y - 6 - len : y + 6;
-    // white -> gold -> orange along the streak
-    int a = len / 3;
-    f.fill(x, y0 + (dir > 0 ? 0 : len - a), 2 + (h >> 8 & 2), a, c565(0xFFF4C0));
-    f.fill(x, y0 + (dir > 0 ? a : a), 2 + (h >> 8 & 2), a, c565(GOLD));
-    f.fill(x, y0 + (dir > 0 ? 2 * a : 0), 2, a, c565(ORANGE));
+// cracks: jagged lines racing out from the fist through the ground; 'grow' 0..1
+static void cracks(Frame& f, float grow, int shake) {
+  uint16_t dark = c565(0x120A1E), lit = c565(0xF8C038);
+  for (int k = 0; k < 10; k++) {
+    int x = PAW_X, y = GROUND_Y + 2;
+    float a = (k < 5 ? 0.15f : (float)M_PI - 0.15f) + (k % 5) * (k < 5 ? 0.30f : -0.30f);  // fan both ways, downward
+    int steps = 9 + (int)(hash(k * 31) % 9), n = (int)(steps * grow);
+    for (int s = 0; s < n; s++) {
+      float jit = ((int)(hash(k * 97 + s) % 100) - 50) / 60.0f;
+      int nx = x + (int)(cosf(a + jit) * 10), ny = y + (int)(fabsf(sinf(a + jit)) * 6) + 1;
+      int len = max(abs(nx - x), abs(ny - y)) / 2 + 1;
+      for (int i = 0; i <= len; i++) {
+        int px = (x + (nx - x) * i / len + shake) & ~1, py = (y + (ny - y) * i / len + shake / 2) & ~1;
+        f.fill(px, py, 4, 2, dark);
+        if (grow < 0.6f && s < 3) f.fill(px, py, 2, 2, lit);  // glowing right at the start
+      }
+      x = nx, y = ny;
+      if (y > SH) break;
+    }
   }
+  // crater under the fist
+  f.fill((PAW_X - 22 + shake) & ~1, GROUND_Y, 44, 4, dark);
+  f.fill((PAW_X - 14 + shake) & ~1, GROUND_Y + 4, 28, 4, dark);
 }
 
 void LevelUpFx::draw(Frame& f, uint32_t now, const CatImg* const* L, const char* name) const {
   float t = (now - t0) / 1000.0f;
-  bool impactFrame = t >= T_IMPACT && t < T_IMPACT + 0.10f;
-  float sinceImpact = t - T_IMPACT;
+  float since = t - T_IMPACT;
+  bool impactFrame = since >= 0 && since < 0.10f;
+  bool rising = t >= T_RISE && t < T_FALL;
+  bool falling = t >= T_FALL && t < T_IMPACT;
+  bool landed = t >= T_IMPACT;
 
-  // heavy shake after the landing, small kicks on each title slam
   int shake = 0;
-  if (sinceImpact > 0.10f && sinceImpact < 0.75f) {
-    int amp = (int)(10 * (1 - (sinceImpact - 0.10f) / 0.65f));
+  if (since > 0.10f && since < 0.85f) {
+    int amp = (int)(12 * (1 - (since - 0.10f) / 0.75f));
     shake = (((now / 30) & 1) ? amp : -amp) & ~1;
   }
-  if ((t > 2.12f && t < 2.24f) || (t > 2.32f && t < 2.44f)) shake = ((now / 30) & 1) ? 4 : -4;
+  if ((t > 2.06f && t < 2.18f) || (t > 2.26f && t < 2.38f)) shake = ((now / 30) & 1) ? 4 : -4;
 
-  // ---------------- background + vertical speed lines
+  // ---------------- impact frame: black, white light rays from the fist, white silhouette
   if (impactFrame) {
     f.fill(0, f.oy, SW, STRIP, c565(0x000000));
-  } else {
-    f.fill(0, f.oy, SW, STRIP, c565(0x1C0C36));
-    f.ditherRect(0, f.oy, SW, STRIP, c565(0x2A1450));
+    for (int i = 0; i < 20; i++) {
+      float a = (float)M_PI + i * (float)M_PI / 19;
+      f.triangle(PAW_X, GROUND_Y, PAW_X + (int)(cosf(a - 0.03f) * 420), GROUND_Y + (int)(sinf(a - 0.03f) * 420),
+                 PAW_X + (int)(cosf(a + 0.03f) * 420), GROUND_Y + (int)(sinf(a + 0.03f) * 420), 0xFFFFFF);
+    }
+    f.fill(0, GROUND_Y, SW, 2, c565(0xFFFFFF));
+    f.catTint(L[L_HERO_LAND], 0, 0, c565(0xFFFFFF), 255);
+    return;
   }
-  float v = catVel(t);
-  bool calm = t >= T_IMPACT;  // lines stop once it has landed
-  float scroll = linePos(t);  // lines run against the motion: rising cat -> lines fall
-  for (int i = 0; i < 44; i++) {
+
+  // ---------------- sky + vertical anime speed lines
+  f.fill(0, f.oy, SW, STRIP, c565(0x1C0C36));
+  f.ditherRect(0, f.oy, SW, STRIP, c565(0x2A1450));
+  float scroll = linePos(t);
+  for (int i = 0; i < 48; i++) {
     uint32_t h = hash(i * 2654435761u);
     int x = (int)(h % SW) & ~1;
-    int len = 30 + (int)((h >> 8) % 110);
-    float base = (float)((h >> 16) % (SH + 200));
-    int y = (int)fmodf(base + scroll + 40000, SH + 200) - 100;
-    uint32_t col = impactFrame ? 0xFFFFFF : (i % 4 == 0 ? 0xFFFFFF : (i & 1 ? GOLD : 0x8A5CF0));
+    int len = 30 + (int)((h >> 8) % 130);
+    int y = (int)fmodf((float)((h >> 16) % (SH + 220)) + scroll + 40000, SH + 220) - 110;
+    uint32_t col = i % 4 == 0 ? 0xFFFFFF : (i & 1 ? GOLD : 0x8A5CF0);
     int w = (i % 5 == 0) ? 4 : 2;
-    if (calm && !impactFrame) {  // after landing the lines fade to sparse sparkles
+    if (landed) {  // after the slam the lines settle into sparse sparkles
       if (i % 3) continue;
       len = 6;
     }
     f.fill(x, y, w, len, c565(col));
   }
 
-  int dy = (int)catDy(t);
-  dy &= ~1;
-
-  // ---------------- impact frame: white silhouette on black, radial cracks of light
-  if (impactFrame) {
-    for (int i = 0; i < 16; i++) {
-      float a = i * (float)M_PI / 8 + 0.2f;
-      f.triangle(IMPACT_X, IMPACT_Y, IMPACT_X + (int)(cosf(a - 0.04f) * 400), IMPACT_Y + (int)(sinf(a - 0.04f) * 400),
-                 IMPACT_X + (int)(cosf(a + 0.04f) * 400), IMPACT_Y + (int)(sinf(a + 0.04f) * 400), 0xFFFFFF);
-    }
-    f.catTint(L[L_DESK], 0, 0, c565(0x000000), 255);
-    f.catTint(L[L_BODY], 0, 0, c565(0xFFFFFF), 255);
-    f.catTint(L[L_PAWS_LEFT], 0, 0, c565(0xFFFFFF), 255);
-    return;
-  }
-
-  // ---------------- desk (stays put; shakes and cracks on impact)
-  f.cat(L[L_DESK], shake / 2, shake);
-  if (sinceImpact > 0) {  // cracks: jagged dark lines out from the fist
-    uint16_t crack = c565(0x3A2210);
-    for (int k = 0; k < 7; k++) {
-      int x = IMPACT_X, y = IMPACT_Y;
-      float a = (float)M_PI + k * (float)M_PI / 6 - 0.1f;  // fan out across the desk
-      int steps = 6 + (int)(hash(k * 31) % 6);
-      int grow = min(steps, (int)(sinceImpact * 60));
-      for (int s = 0; s < grow; s++) {
-        float jit = ((int)(hash(k * 97 + s) % 100) - 50) / 90.0f;
-        x += (int)(cosf(a + jit) * 7);
-        y += (int)(sinf(a + jit) * 4);
-        if (y < IMPACT_Y - 18) y = IMPACT_Y - 18;
-        f.fill((x + shake) & ~1, (y + shake / 2) & ~1, 4, 2, crack);
-      }
-    }
+  // ---------------- ground
+  if (f.vis(GROUND_Y, SH - GROUND_Y)) {
+    f.fill(0, GROUND_Y + shake / 2, SW, SH - GROUND_Y, c565(0x3A3050));
+    f.ditherRect(0, GROUND_Y + 6 + shake / 2, SW, SH - GROUND_Y, c565(0x302744));
+    f.fill(0, GROUND_Y + shake / 2, SW, 2, c565(0x6A5C8C));
+    if (landed) cracks(f, clamp01(since / 0.35f), shake);
   }
 
   // ---------------- the cat
-  bool airborne = t >= T_LAUNCH && t < T_IMPACT;
-  bool diving = t >= T_DIVE && t < T_IMPACT;
-  bool landed = t >= T_IMPACT;
-  // afterimages trailing behind the motion
-  if (airborne && fabsf(v) > 150) {
-    int dir = v < 0 ? 1 : -1;  // rising -> ghosts below
-    for (int k = 3; k >= 1; k--) {
-      f.catTint(L[L_BODY], 0, dy + dir * k * 22, c565(k == 1 ? GOLD : 0x8A5CF0), (uint8_t)(170 - k * 40));
+  if (rising) {
+    float p = clamp01((t - T_RISE) / (T_PEAK - T_RISE));
+    int dy = (int)(FLY_START + (FLY_PEAK - FLY_START) * easeOutCubic(p));
+    if (t >= T_PEAK) dy = FLY_PEAK + (int)(3 * sinf((t - T_PEAK) * 32));  // trembling with power
+    dy &= ~1;
+    bool fast = p < 0.85f;
+    if (fast)
+      for (int k = 3; k >= 1; k--)  // afterimages below
+        f.catTint(L[L_HERO_FLY], 0, dy + k * 28, c565(k == 1 ? GOLD : 0x8A5CF0), (uint8_t)(170 - k * 40));
+    if (t >= T_PEAK - 0.12f) {  // golden aura while it powers up
+      uint8_t glow = (uint8_t)(150 + 100 * sinf(t * 26));
+      static const int8_t ox[] = {-4, 4, 0, 0, -3, 3, -3, 3}, oy[] = {0, 0, -4, 4, -3, -3, 3, 3};
+      for (int k = 0; k < 8; k++) f.catTint(L[L_HERO_FLY], ox[k], dy + oy[k], c565(GOLD), glow);
     }
-  }
-  // power-up aura while hovering
-  if (t >= T_HANG - 0.1f && t < T_IMPACT) {
-    uint8_t glow = (uint8_t)(150 + 100 * sinf(t * 24));
-    static const int8_t ox[] = {-4, 4, 0, 0, -3, 3, -3, 3}, oy[] = {0, 0, -4, 4, -3, -3, 3, 3};
-    for (int k = 0; k < 8; k++) {
-      f.catTint(L[L_BODY], ox[k], dy + oy[k], c565(GOLD), glow);
-      f.catTint(L[L_PAWS_UP], ox[k], dy + oy[k], c565(GOLD), glow);
+    // thrust flare from the feet (screen x ~96..176, feet at y 270 + dy)
+    uint32_t flick = (uint32_t)(t * 30);
+    for (int x = 96; x < 176; x += 2) {
+      uint32_t h = hash(x * 131 + flick);
+      int len = 12 + (int)(h % (fast ? 64 : 26));
+      int y0 = 268 + dy, a = len / 3;
+      f.fill(x, y0, 2, a, c565(0xFFF4C0));
+      f.fill(x, y0 + a, 2, a, c565(GOLD));
+      f.fill(x, y0 + 2 * a, 2, a, c565(ORANGE));
     }
+    f.cat(L[L_HERO_FLY], dy);
+  } else {
+    int dy = 0;
+    if (falling) {
+      dy = (int)(FALL_FROM * (1 - easeInCubic((t - T_FALL) / (T_IMPACT - T_FALL)))) & ~1;
+      for (int k = 3; k >= 1; k--)  // afterimages above
+        f.catTint(L[L_HERO_LAND], 0, dy - k * 30, c565(k == 1 ? GOLD : 0x8A5CF0), (uint8_t)(170 - k * 40));
+    }
+    if (t < T_RISE) dy = 0;
+    f.cat(L[L_HERO_LAND], dy + shake / 2, shake);
   }
-  CatLayer face = landed ? (t > 3.3f ? L_FACE_HAPPY : L_FACE_STOCK) : (airborne ? L_FACE_HAPPY : L_FACE_BLINK);
-  CatLayer paws = landed && t < 3.3f ? L_PAWS_LEFT : L_PAWS_UP;  // fist planted = superhero landing
-  f.cat(L[L_BODY], dy + shake / 2, shake);
-  f.cat(L[face], dy + shake / 2, shake);
-  f.cat(L[paws], dy + shake / 2, shake);
-  if (airborne) energyTrail(f, dy, t, diving);
-  if (landed && sinceImpact < 0.5f) f.cat(L[L_FX_LEFT], shake / 2, shake);  // impact lines at the fist
 
-  // ---------------- landing debris + dust
-  if (sinceImpact > 0 && sinceImpact < 1.2f) {
-    float p = sinceImpact;
-    for (int i = 0; i < 26; i++) {  // chunks of desk and keycaps flying out
+  // ---------------- rubble + dust + shockwave after the slam
+  if (landed && since < 1.3f) {
+    float p = since;
+    for (int i = 0; i < 30; i++) {
       uint32_t h = hash(i * 7349 + 11);
-      float vx = ((int)(h % 300) - 150) * 1.6f, vy = -(150 + (int)((h >> 9) % 260));
-      int x = IMPACT_X + (int)(vx * p), y = IMPACT_Y + (int)(vy * p + 520 * p * p);
+      float vx = ((int)(h % 300) - 150) * 1.4f, vy = -(180 + (int)((h >> 9) % 300));
+      int x = PAW_X + 20 + (int)(vx * p), y = GROUND_Y + (int)(vy * p + 600 * p * p);
       int sz = (h >> 20) & 1 ? 4 : 6;
-      uint32_t col = (h >> 22) % 3 == 0 ? 0xCDD0DA : ((h >> 22) % 3 == 1 ? 0xC88A5A : 0xA86E43);
-      if (y < SH) f.fill(x & ~1, y & ~1, sz, sz, c565(col));
+      if (y < GROUND_Y + 4) f.fill(x & ~1, y & ~1, sz, sz, c565((h >> 22) & 1 ? 0x6A5C8C : 0x8A7CAC));
     }
-    for (int side = -1; side <= 1; side += 2) {  // dust clouds rolling out both ways
-      for (int k = 0; k < 3; k++) {
-        int x = IMPACT_X + side * (int)(30 + p * 120 + k * 22);
-        int r = (int)(10 + p * 14 - k * 2);
-        if (r > 2 && p < 0.9f) f.disc(x & ~1, (IMPACT_Y - 4 - k * 6) & ~1, r, c565(k ? 0xE8E0F0 : 0xFFFFFF));
+    for (int side = -1; side <= 1; side += 2)
+      for (int k = 0; k < 4; k++) {
+        int x = PAW_X + 30 + side * (int)(30 + p * 120 + k * 22);
+        int r = (int)(12 + p * 18 - k * 3);
+        if (r > 2 && p < 1.0f) f.disc(x & ~1, (GROUND_Y - 6 - k * 4) & ~1, r, c565(k ? 0xD8CCE8 : 0xF0E8F8));
       }
-    }
-    // shockwave along the desk
-    if (p < 0.5f) {
-      int r = (int)(20 + p * 300);
-      f.fill((IMPACT_X - r) & ~1, IMPACT_Y - 2, 2 * r, 4, c565(0xFFFFFF));
+    if (p < 0.45f) {
+      int r = (int)(20 + p * 360);
+      f.fill(max(0, PAW_X - r) & ~1, GROUND_Y - 2, min(SW, 2 * r), 4, c565(0xFFFFFF));
     }
   }
 
   // ---------------- LEVEL UP! above the cat
-  float p1 = clamp01((t - 1.95f) / 0.22f), p2 = clamp01((t - 2.15f) / 0.22f);
-  if (t > 1.95f) title(f, "LEVEL", SW / 2 + shake, -40 + (int)(easeOutBack(p1) * 92), PX32, PAPER);
-  if (t > 2.15f) title(f, "UP!", SW / 2 - shake, -40 + (int)(easeOutBack(p2) * 134), PX32, GOLD);
+  float p1 = clamp01((t - 1.90f) / 0.22f), p2 = clamp01((t - 2.10f) / 0.22f);
+  if (t > 1.90f) title(f, "LEVEL", SW / 2 + shake, -40 + (int)(easeOutBack(p1) * 64), PX32, PAPER);
+  if (t > 2.10f) title(f, "UP!", SW / 2 - shake, -40 + (int)(easeOutBack(p2) * 96), PX32, GOLD);
 
-  // ---------------- banner: level counter, then the name
-  if (t > 2.45f) {
-    char buf[32];
-    if (t < 3.4f) snprintf(buf, sizeof buf, "Lv%d \xE2\x96\xB6 Lv%d", from, t > 2.85f ? to : from);
-    else {
+  // ---------------- the level box: rises, EXP fills, flashes, the number rolls over
+  if (t > 2.40f) {
+    float rise = easeOutBack(clamp01((t - 2.40f) / 0.25f));
+    int by = SH - (int)(rise * 42), bx = 8, bw = SW - 16, bh = 40;
+    // Pokémon text box
+    f.fill(bx + 2, by, bw - 4, bh, c565(INK));
+    f.fill(bx, by + 2, bw, bh - 4, c565(INK));
+    f.fill(bx + 4, by + 2, bw - 8, bh - 4, c565(RIM));
+    f.fill(bx + 2, by + 4, bw - 4, bh - 8, c565(RIM));
+    f.fill(bx + 6, by + 4, bw - 12, bh - 8, c565(PAPER));
+    f.fill(bx + 4, by + 6, bw - 8, bh - 12, c565(PAPER));
+    // level number, rolling from old to new like a slot machine at 2.95 s
+    f.text("Lv", bx + 14, by + 14, PX8, INK);
+    float roll = clamp01((t - 2.95f) / 0.28f);
+    char a[8], b[8];
+    snprintf(a, sizeof a, "%d", from);
+    snprintf(b, sizeof b, "%d", to);
+    f.setClip(bx + 30, by + 4, 48, 20);
+    int off = (int)(easeOutBack(roll) * 20) & ~1;
+    f.text(a, bx + 32, by + 14 - off, PX16, INK);
+    f.text(b, bx + 32, by + 34 - off, PX16, roll > 0 ? 0xD08000 : INK);
+    f.clearClip();
+    // EXP bar fills, then flashes white when it tops out
+    float fill = clamp01((t - 2.55f) / 0.40f);
+    int ex = bx + 80, ew = bw - 96, fw = (int)((ew - 4) * fill) & ~1;
+    f.text("EXP", ex, by + 14, PX8, 0x687088);
+    f.fill(ex + 28, by + 10, ew - 28, 8, c565(INK));
+    f.fill(ex + 30, by + 12, ew - 32, 4, c565(0x485068));
+    bool flashBar = t > 2.95f && t < 3.15f && ((now / 50) & 1);
+    f.fill(ex + 30, by + 12, (int)((ew - 32) * fill) & ~1, 4, c565(flashBar ? 0xFFFFFF : 0x58A0F0));
+    (void)fw;
+    // "+1" pops up out of the box when the number changes
+    if (t > 2.95f && t < 3.8f) {
+      float q = clamp01((t - 2.95f) / 0.85f);
+      title(f, "+1", bx + 60, by - 6 - (int)(q * 26), PX16, GOLD);
+      for (int i = 0; i < 10; i++) {  // sparkle burst around the number
+        float ang = i * (float)M_PI / 5;
+        int r = 10 + (int)(q * 44);
+        f.fill((bx + 44 + (int)(cosf(ang) * r * 1.6f)) & ~1, (by + 14 + (int)(sinf(ang) * r * 0.6f)) & ~1, 4, 4, c565(0xFFF4A0));
+      }
+    }
+    // second line: who levelled up
+    if (t > 3.4f) {
+      char buf[32];
       snprintf(buf, sizeof buf, "%s GOT STRONGER!", name && name[0] ? name : "YOUR CAT");
       for (char* c = buf; *c; c++) *c = toupper((unsigned char)*c);
-    }
-    f.fill(0, 292, SW, 28, c565(INK));
-    f.fill(0, 294, SW, 24, c565(PAPER));
-    f.text(buf, SW / 2, 306, PX8, t > 2.85f && t < 3.4f ? 0xD08000 : INK, AL_C, SW - 12);
-    if (t > 2.85f && t < 3.3f) {  // burst when the number ticks over
-      float p = (t - 2.85f) / 0.45f;
-      for (int i = 0; i < 12; i++) {
-        float a = i * (float)M_PI / 6;
-        int r = 14 + (int)(p * 60);
-        f.fill((SW / 2 + (int)(cosf(a) * r * 1.8f)) & ~1, (300 + (int)(sinf(a) * r * 0.5f)) & ~1, 4, 4, c565(0xFFF4A0));
-      }
+      f.text(buf, SW / 2, by + 29, PX8, INK, AL_C, bw - 20);
     }
   }
 
-  // ---------------- flashes: start, landing, end
-  if (t < T_CROUCH) f.blendAll(c565(0xFFFFFF), (uint8_t)(255 * (1 - t / T_CROUCH)));
-  if (sinceImpact >= 0.10f && sinceImpact < 0.30f) f.blendAll(c565(0xFFFFFF), (uint8_t)(230 * (1 - (sinceImpact - 0.10f) / 0.2f)));
-  if (t > 4.6f) f.blendAll(c565(0xFFFFFF), (uint8_t)(255 * clamp01((t - 4.6f) / 0.4f)));
+  // ---------------- flashes: start, slam, end
+  if (t < T_RISE) f.blendAll(c565(0xFFFFFF), (uint8_t)(255 * (1 - t / T_RISE)));
+  if (since >= 0.10f && since < 0.30f) f.blendAll(c565(0xFFFFFF), (uint8_t)(230 * (1 - (since - 0.10f) / 0.2f)));
+  if (t > 4.95f) f.blendAll(c565(0xFFFFFF), (uint8_t)(255 * clamp01((t - 4.95f) / 0.45f)));
 }

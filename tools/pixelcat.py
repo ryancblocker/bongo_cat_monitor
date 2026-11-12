@@ -16,6 +16,7 @@ from PIL import Image, ImageDraw
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from sprites import load_8bit, EIGHT  # noqa: E402
+import heropose  # noqa: E402
 
 OUT = os.path.join(HERE, "out")
 N = 128  # HD sprite size
@@ -443,7 +444,7 @@ def zzz(frame):
 # ------------------------------------------------------------------ all layers
 LAYERS = ["body", "body_twitch", "face_stock", "face_happy", "face_blink", "face_sleepy", "face_look_l",
           "face_look_r", "face_yawn", "face_yawn_half", "desk", "paws_up", "paws_left", "paws_right", "fx_left", "fx_right",
-          "fx_zzz0", "fx_zzz1", "fx_zzz2", "fx_heart0", "fx_heart1"]
+          "fx_zzz0", "fx_zzz1", "fx_zzz2", "fx_heart0", "fx_heart1", "hero_fly", "hero_land"]
 
 
 def hd_layers():
@@ -460,6 +461,8 @@ def hd_layers():
         out[f"hd/{coat}/face_yawn_half"] = paint_yawn(coat, wide=False)
         for w in ("up", "left", "right"):
             out[f"hd/{coat}/paws_{w}"] = paint_fur_layer(f"paws_{w}", coat, paws=True)
+        for pose in ("fly", "land"):  # full-body poses for the level-up
+            out[f"hd/{coat}/hero_{pose}"] = heropose.build(pose, coat, sys.modules[__name__])
     out["hd/-/desk"] = d
     for n in ("fx_left", "fx_right"):
         out[f"hd/-/{n}"] = fx(n)

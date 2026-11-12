@@ -16,8 +16,8 @@ struct CatImg {
 
 enum CatStyle : uint8_t { STYLE_HD, STYLE_EIGHTBIT };
 enum CatCoat : uint8_t { COAT_WHITE, COAT_BLACK, COAT_GREY, COAT_ORANGE, COAT_CALICO, COAT_TUXEDO, COAT_SIAMESE, COAT_CREAM, COAT_COUNT };
-enum CatLayer : uint8_t { L_BODY, L_BODY_TWITCH, L_FACE_STOCK, L_FACE_HAPPY, L_FACE_BLINK, L_FACE_SLEEPY, L_FACE_LOOK_L, L_FACE_LOOK_R, L_FACE_YAWN, L_FACE_YAWN_HALF, L_DESK, L_PAWS_UP, L_PAWS_LEFT, L_PAWS_RIGHT, L_FX_LEFT, L_FX_RIGHT, L_FX_ZZZ0, L_FX_ZZZ1, L_FX_ZZZ2, L_FX_HEART0, L_FX_HEART1, L_COUNT };
+enum CatLayer : uint8_t { L_BODY, L_BODY_TWITCH, L_FACE_STOCK, L_FACE_HAPPY, L_FACE_BLINK, L_FACE_SLEEPY, L_FACE_LOOK_L, L_FACE_LOOK_R, L_FACE_YAWN, L_FACE_YAWN_HALF, L_DESK, L_PAWS_UP, L_PAWS_LEFT, L_PAWS_RIGHT, L_FX_LEFT, L_FX_RIGHT, L_FX_ZZZ0, L_FX_ZZZ1, L_FX_ZZZ2, L_FX_HEART0, L_FX_HEART1, L_HERO_FLY, L_HERO_LAND, L_COUNT };
 
-extern const CatImg* const CAT_TABLE[2][8][21];
+extern const CatImg* const CAT_TABLE[2][8][23];
 static const char* const STYLE_NAMES[] = {"hd", "8bit"};
 static const char* const COAT_NAMES[] = {"white", "black", "grey", "orange", "calico", "tuxedo", "siamese", "cream"};

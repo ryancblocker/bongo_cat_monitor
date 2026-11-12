@@ -8,7 +8,7 @@
 
 class LevelUpFx {
  public:
-  static constexpr uint32_t DURATION = 5000;
+  static constexpr uint32_t DURATION = 5400;
   void start(uint32_t now, uint16_t fromLv, uint16_t toLv);
   bool active(uint32_t now) const { return on && now - t0 < DURATION; }
   bool justEnded(uint32_t now);  // true once, right after it finishes

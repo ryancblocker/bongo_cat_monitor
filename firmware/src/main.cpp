@@ -66,7 +66,7 @@ static const DemoStep STEPS[] = {
     {3000, "HELLO!"}, {3000, "TYPING"}, {3000, "TYPING FAST"}, {3500, "PC STATS"},
     {2500, "SOME SUN"}, {2500, "CLOUDY"}, {2500, "RAIN"}, {3500, "STORM"}, {2500, "SNOW"},
     {2500, "FOG"}, {3000, "STARRY NIGHT"}, {2500, "PET ME!"}, {2200, "YAWN..."}, {3500, "ZZZ..."},
-    {3000, "FOCUS TIMER"}, {5200, "LEVEL UP!"},
+    {3000, "FOCUS TIMER"}, {5600, "LEVEL UP!"},
     {1100, "WHITE"}, {1100, "BLACK"}, {1100, "GREY"}, {1100, "ORANGE TABBY"}, {1100, "CALICO"},
     {1100, "TUXEDO"}, {1100, "SIAMESE"}, {1100, "CREAM"}, {1600, "ORIGINAL 8-BIT"}, {3000, "OPTIONS"},
 };
