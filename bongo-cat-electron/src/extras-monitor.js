@@ -202,7 +202,7 @@ class ExtrasMonitor {
         const q = (query || '').trim();
         if (!q) return null;
         if (/^\d{5}$/.test(q)) {
-            const res = await fetch(`https://api.zippopotam.us/us/${q}`, { signal: AbortSignal.timeout(8000) });
+            const res = await fetch(`https://api.zippopotam.us/us/${q}`, { signal: AbortSignal.timeout(15000) });
             if (!res.ok) throw new Error(`ZIP ${q} not found`);
             const data = await res.json();
             const p = data.places && data.places[0];
@@ -212,7 +212,7 @@ class ExtrasMonitor {
         // "City" or "City, ST" / "City, State" / "City, Country"
         const [city, region] = q.split(',').map(s => s.trim());
         const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&name=${encodeURIComponent(city)}`,
-            { signal: AbortSignal.timeout(8000) });
+            { signal: AbortSignal.timeout(15000) });
         const data = await res.json();
         let results = data.results || [];
         if (region) {
@@ -240,19 +240,23 @@ class ExtrasMonitor {
             const { lat, lon } = this.place;
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
                 `&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`;
-            const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+            const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
             if (!res.ok) throw new Error(`weather service returned ${res.status}`);
             const data = await res.json();
             this.weather = { tempF: data.current.temperature_2m, code: data.current.weather_code, at: Date.now() };
             this.weatherError = '';
+            this.weatherFailures = 0;
+            console.log(`Weather: ${Math.round(this.weather.tempF)}F ${weatherWord(this.weather.code)} (${this.place.name})`);
         } catch (error) {
             console.error('Weather update failed:', error.message);
             this.weatherError = error.message;
             // keep the last good reading for up to 2 hours
             if (this.weather && Date.now() - this.weather.at > 2 * 60 * 60 * 1000) this.weather = null;
-            // retry sooner than the normal 15 minutes
+            // retry sooner than the normal 15 minutes: 15 s, 30 s, 60 s, then every 2 min
+            this.weatherFailures = (this.weatherFailures || 0) + 1;
+            const delay = Math.min(15000 * 2 ** (this.weatherFailures - 1), 120000);
             clearTimeout(this.retryTimer);
-            this.retryTimer = setTimeout(() => this.refreshWeather(), 60 * 1000);
+            this.retryTimer = setTimeout(() => this.refreshWeather(), delay);
         }
         this.eventEmitter.emit('extras-stats', this.getStatus());
     }
