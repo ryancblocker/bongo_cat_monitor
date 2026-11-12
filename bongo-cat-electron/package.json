@@ -1,7 +1,7 @@
 {
   "name": "bongo-cat-electron",
-  "version": "1.0.0",
-  "description": "Cross-platform Bongo Cat desktop application for Mac and other platforms",
+  "version": "1.1.0",
+  "description": "Bongo Cat desktop companion (Ross edition): typing cat, CPU/GPU/RAM, temps, date and weather",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -10,7 +10,8 @@
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux",
-    "dist": "electron-builder --publish=never"
+    "dist": "electron-builder --publish=never",
+    "test": "node test-extras.js"
   },
   "keywords": [
     "bongo-cat",
@@ -33,7 +34,7 @@
     "systeminformation": "^5.21.22"
   },
   "build": {
-    "appId": "com.bongocat.electron",
+    "appId": "com.ryancblocker.bongocat.ross",
     "productName": "Bongo Cat",
     "directories": {
       "output": "dist"
@@ -61,10 +62,27 @@
       "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/icon.png"
     },
     "linux": {
       "target": "AppImage"
+    },
+    "asar": false,
+    "npmRebuild": false,
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true
     }
   },
   "type": "commonjs"
