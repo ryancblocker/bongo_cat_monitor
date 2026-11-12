@@ -1,4 +1,4 @@
-# 🐱 Bongo Cat Monitor: Ross edition
+# 🐱 Bongo Cat Monitor: Tamagotchi edition
 
 Fork of [vostoklabs/bongo_cat_monitor](https://github.com/vostoklabs/bongo_cat_monitor), rebuilt for a 2.8" **ESP32-32E (USB-C only) Cheap Yellow Display** standing in a portrait stand.
 
