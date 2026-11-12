@@ -16,8 +16,8 @@
 static const uint32_t INK = 0x202838, GOLD = 0xF8C038, ORANGE = 0xF09830, PAPER = 0xF8F8F0, RIM = 0x98B0D0;
 static const float T_RISE = 0.12f, T_PEAK = 0.80f, T_FALL = 1.30f, T_IMPACT = 1.62f;
 static const int GROUND_Y = 268;                  // the landing pose's feet stand here
-static const int PAW_X = 60;                       // where the fist hits
-static const int FLY_START = 290, FLY_PEAK = -14;  // flying pose: off the bottom -> whole cat in view
+static const int PAW_X = 72;                       // where the fist hits
+static const int FLY_START = 290, FLY_PEAK = -50;  // flying pose: off the bottom -> hovering mid-screen
 static const int FALL_FROM = -200;                 // landing pose starts its drop up here
 
 void LevelUpFx::start(uint32_t now, uint16_t fromLv, uint16_t toLv) {
@@ -162,9 +162,9 @@ void LevelUpFx::draw(Frame& f, uint32_t now, const CatImg* const* L, const char*
       static const int8_t ox[] = {-4, 4, 0, 0, -3, 3, -3, 3}, oy[] = {0, 0, -4, 4, -3, -3, 3, 3};
       for (int k = 0; k < 8; k++) f.catTint(L[L_HERO_FLY], ox[k], dy + oy[k], c565(GOLD), glow);
     }
-    // thrust flare from the feet (screen x ~96..176, feet at y 270 + dy)
+    // thrust flare from the feet (screen x ~92..150, feet at y 268 + dy)
     uint32_t flick = (uint32_t)(t * 30);
-    for (int x = 96; x < 176; x += 2) {
+    for (int x = 92; x < 150; x += 2) {
       uint32_t h = hash(x * 131 + flick);
       int len = 12 + (int)(h % (fast ? 64 : 26));
       int y0 = 268 + dy, a = len / 3;
