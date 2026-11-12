@@ -4,10 +4,11 @@
 //   TIME:HH:MM[:SS]   DATE:Thu, Nov 12
 //   WX2:code=3|day=1|t=54|hi=60|lo=41|wind=8|wu=mph|hum=40|u=F|place=Highlands Ranch
 //   PC:cpu=23|ram=41|wpm=82|cput=136|gpu=63|gput=160|u=F       (-1 = unknown)
-//   SET:style=hd|coat=calico|name=Mochi|bright=200|cycle=8|cards=3|h24=0|sleep=5|focus=25
+//   SET:style=hd|coat=calico|name=Mochi|bright=200|cycle=8|cards=3|h24=0|sleep=5|focus=25|wear=31 (wardrobe bits: 1 band, 2 headset, 4 crown, 8 cape, 16 RGB keys)
 //   URL:http://192.168.1.20:8787/c/abc123/
 //   FOCUS:<minutes>  start a focus session (FOCUS:0 stops it)
 //   DEMO  tour of every screen and animation (DEMO:0 or a tap stops it)
+//   RESET_PROGRESS  level back to 1
 //   LEVELUP  preview a normal level-up   EVOLVE[:level]  preview an evolution   LEVEL:n  try a level (not saved)
 //   SPEED:<ms>  STOP  IDLE_START  STREAK_ON  STREAK_OFF  HEARTBEAT  PING  SHOT  DBG  UI:settings
 // board -> PC:
@@ -161,7 +162,7 @@ static void demoTick(uint32_t now) {
 }
 
 // ------------------------------------------------------------------ settings in NVS
-static const uint32_t SETTINGS_VER = 4;  // 4: focus length
+static const uint32_t SETTINGS_VER = 5;  // 4: focus length, 5: wardrobe
 
 static void loadSettings() {
   Preferences p;
@@ -192,9 +193,14 @@ static void startFocus(int minutes) {
   Serial.printf("EVT:focus=start|min=%d|left=%d\n", minutes, minutes * 60);
 }
 
+static uint32_t stopAskUntil = 0;  // STOP on the focus card was tapped once: tap again to confirm
+
+// cancelling a session gives no EXP and makes the cat sad
 static void stopFocus() {
   if (!focus.active) return;
   focus.active = false;
+  stopAskUntil = 0;
+  cat.sad(millis());
   Serial.println("EVT:focus=stop");
 }
 
@@ -258,6 +264,7 @@ static void handleSet(const String& s) {
   if ((v = field(s, "h24")).length()) settings.h24 = v.toInt() != 0;
   if ((v = field(s, "sleep")).length()) settings.sleepMin = constrain(v.toInt(), 1, 60);
   if ((v = field(s, "focus")).length()) settings.focusMin = constrain(v.toInt(), 5, 120);
+  if ((v = field(s, "wear")).length()) settings.wear = constrain(v.toInt(), 0, 31);
   saveSettingsSoon();
   settingsDirty = true;
   Serial.printf("EVT:level=%d\n", catLevel);  // lets the app show the level after it syncs
@@ -281,6 +288,17 @@ static void handleLine(String line) {
   else if (line == "DEMO") demoStart();
   else if (line == "DEMO:0") demoStop();
   else if (line == "LEVELUP") { levelUp.start(now, catLevel, catLevel + 1, false); levelUpReal = false; screen = Screen::Main; }
+  else if (line == "RESET_PROGRESS") {  // phone page: back to Lv 1 (gear locks again)
+    if (focus.active) {
+      focus.active = false;
+      Serial.println("EVT:focus=stop");
+    }
+    levelUp.cancel();
+    catLevel = 1;
+    saveLevel();
+    settingsDirty = true;
+    Serial.printf("EVT:level=%d\n", catLevel);
+  }
   else if (line.startsWith("LEVEL:")) catLevel = constrain(line.substring(6).toInt(), 1, 999);  // test only, not saved
   else if (line.startsWith("EVOLVE")) {  // EVOLVE preview of the next evolution, EVOLVE:15 of a given level
     int lv = line.length() > 7 ? line.substring(7).toInt() : 0;
@@ -449,6 +467,10 @@ static void handleTouch(uint32_t now) {
         else if (view.card == CARD_FOCUS && view.next < 0 && !focus.active && sx >= FC_BTN_X - 4 &&
                  sx < FC_BTN_X + FC_BTN_W + 4 && sy >= FC_BTN_Y - 6) {
           startFocus(settings.focusMin);  // big ▶ START on the focus card
+        } else if (view.card == CARD_FOCUS && view.next < 0 && focus.active && sx >= FS_BTN_X - 4 &&
+                   sx < FS_BTN_X + FS_BTN_W + 4 && sy >= FS_BTN_Y - 6) {
+          if (now < stopAskUntil) stopFocus();  // second tap: cancel (no EXP)
+          else stopAskUntil = now + 3000;       // first tap: "SURE?"
         } else {
           advanceCard(sx < CARD_X + CARD_W / 2 ? -1 : 1);  // left half = back, right half = forward
           cardSince = now;
@@ -518,6 +540,7 @@ void loop() {
   // cards: which are on, auto-advance, slide animation
   int ids[3], n = enabledCards(ids);
   view.nCards = n;
+  view.stopAsk = now < stopAskUntil;
   bool known = false;
   for (int i = 0; i < n; i++) known |= ids[i] == view.card;
   if (n > 0 && !known) view.card = ids[0], view.next = -1;  // its card was switched off

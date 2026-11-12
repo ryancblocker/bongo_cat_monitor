@@ -24,8 +24,11 @@ h1{margin:0;font-size:16px;line-height:24px;font-weight:400;letter-spacing:1px}
 .st i{width:8px;height:8px;background:var(--red);display:inline-block}
 .st.on i{background:var(--green)}
 .screen{margin-top:12px;padding:6px;background:var(--ink);border-radius:6px}
-.screen .in{position:relative;background:#b0d8f8;aspect-ratio:256/200;overflow:hidden}
-.screen img{display:block;width:100%;height:100%;image-rendering:pixelated}
+.screen .in{position:relative;background:#b0cce8;aspect-ratio:256/200;overflow:hidden}
+/* the cat preview is stacked transparent layers: cape, fur, gear, desk, paws */
+.stack{position:relative;background:#b0cce8;aspect-ratio:256/200;overflow:hidden}
+.stack img{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+.screen .stack{position:absolute;inset:0}
 .plate{position:absolute;left:3%;top:4%;background:var(--paper);border:3px solid var(--ink);box-shadow:inset 0 0 0 2px var(--rim);border-radius:4px;padding:6px 8px 4px;font-size:8px;line-height:12px;text-transform:uppercase}
 .plate:empty{display:none}
 .plate b{font-weight:400;display:block}.plate span{color:var(--red)}
@@ -43,9 +46,22 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
 .seg button,.tile,.sw{border:3px solid var(--ink);border-radius:4px;background:#fff;cursor:pointer}
 .seg button{height:40px;font-size:10px}
 .seg button[aria-pressed=true],.tile[aria-pressed=true]{background:var(--gold)}
-.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .tile{padding:4px 4px 6px;font-size:7px;line-height:10px;text-align:center}
-.tile img{display:block;width:100%;aspect-ratio:256/200;image-rendering:pixelated;margin-bottom:4px;border:2px solid var(--ink)}
+.tile img,.tile .stack{display:block;width:100%;aspect-ratio:256/200;image-rendering:pixelated;margin-bottom:4px;border:2px solid var(--ink)}
+.tile[aria-disabled=true]{background:#d8dee8;color:var(--sub);cursor:default}
+.tile[aria-disabled=true] .stack{filter:grayscale(1) contrast(.7) brightness(1.05);opacity:.75}
+#wardrobe .stack img{transform:scale(1.7);transform-origin:52% 26%}  /* zoom in on the head and gear */
+#wardrobe .tile[data-bit="16"] .stack img{transform:scale(1.25);transform-origin:30% 95%}  /* the keyboard */
+#wardrobe .tile[data-bit="8"] .stack img{transform:scale(1.5);transform-origin:70% 40%}  /* cape off the back */
+.tile .lock{display:block;color:var(--sub)}
+.tile .mystery{display:grid;place-items:center;background:var(--ink);color:#687088;font-size:20px;margin-bottom:4px;aspect-ratio:256/200;border:2px solid var(--ink)}
+.tile [hidden]{display:none!important}
+.go.danger{background:#fff;color:var(--red)}
+dialog{border:0;padding:0;background:none;max-width:340px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(16,20,32,.7)}
+dialog .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+dialog .row2 .go{margin-top:0}
 .row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:3px dotted var(--rim)}
 .row:first-child{border-top:0;padding-top:0}
 .row .t{flex:1;min-width:0;font-size:10px}.row .t span{display:block;font-size:8px;line-height:14px;color:var(--sub)}
@@ -73,7 +89,7 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
   </div>
 
   <div class="screen" aria-label="Preview of your cat">
-    <div class="in"><img id="pv" alt=""><div class="plate" id="plate"></div></div>
+    <div class="in"><div class="stack" id="pv"></div><div class="plate" id="plate"></div></div>
   </div>
 
   <div class="box mt" id="focusBox">
@@ -110,13 +126,23 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
       <div class="tiles" id="coat"></div>
     </div>
     <div class="box">
-      <div class="lbl">STYLE</div>
-      <div class="seg" style="grid-template-columns:1fr 1fr" id="style">
-        <button data-v="hd">HD PIXEL</button><button data-v="8bit">8-BIT</button>
-      </div>
-      <div class="hint">8-BIT IS THE ORIGINAL CAT. COATS ARE FOR HD PIXEL.</div>
+      <div class="lbl">WARDROBE <span id="wearLv"></span></div>
+      <div class="tiles" id="wardrobe"></div>
+      <div class="hint">ITEMS UNLOCK AS YOUR CAT EVOLVES AT LV 5, 15 AND 30. TAP ONE TO PUT IT ON OR TAKE IT OFF.</div>
+    </div>
+    <div class="box">
+      <div class="lbl">PROGRESS <span id="progLv">LV 1</span></div>
+      <button class="go danger" id="resetBtn">RESET PROGRESS</button>
+      <div class="hint">STARTS YOUR CAT OVER AT LV 1. ITS GEAR LOCKS AGAIN.</div>
     </div>
   </section>
+  <dialog id="resetDlg">
+    <div class="box">
+      <div class="lbl" id="resetQ">RESET TO LV 1?</div>
+      <div class="hint" style="margin-top:0">YOUR CAT LOSES ITS LEVEL AND ALL UNLOCKED GEAR. THIS CAN'T BE UNDONE.</div>
+      <div class="row2"><button class="go" id="resetNo">KEEP IT</button><button class="go danger" id="resetYes">RESET</button></div>
+    </div>
+  </dialog>
 
   <!-- ================= SCREEN ================= -->
   <section class="panel" id="p-display" role="tabpanel" aria-labelledby="tab-display" hidden>
@@ -183,6 +209,30 @@ let S = {};
 let F = { active: false, leftSec: 0, min: 0 }, fAt = 0, level = 1, demoOn = false;
 const $ = id => document.getElementById(id);
 const img = (style, coat) => style === '8bit' ? 'cats/8bit.png' : `cats/hd_${coat}.png`;
+// wardrobe: [key, bit, unlock level, label]
+const WEAR = [['band', 1, 5, 'HEADBAND'], ['headset', 2, 15, 'HEADSET'], ['crown', 4, 30, 'CROWN'],
+              ['cape', 8, 30, 'CAPE'], ['rgb', 16, 30, 'RGB KEYS']];
+const unlocked = lv => WEAR.reduce((m, w) => lv >= w[2] ? m | w[1] : m, 0);
+// preview layers back to front for a coat (or '8bit'), the worn items and the level
+function layers(style, coat, worn, lv) {
+  const c = style === '8bit' ? '8bit' : coat, hd = c !== '8bit', L = [];
+  if (worn & 8) L.push('w_cape');
+  if (hd && lv >= 15) L.push(c + '_fluff');
+  L.push(c + '_base');
+  if (worn & 1) L.push('w_band');
+  if (worn & 2) L.push('w_headset');
+  if (worn & 4) L.push('w_crown');
+  if (worn & 8) L.push('w_tie');
+  if (hd) L.push(worn & 16 ? 'desk_rgb' : 'desk');
+  L.push(c + '_front');
+  return L;
+}
+function fillStack(el, names) {
+  const key = names.join();
+  if (el.dataset.k === key) return;
+  el.dataset.k = key;
+  el.innerHTML = names.map(n => `<img alt="" src="cats/${n}.png">`).join('');
+}
 
 function toast(msg, bad) {
   const t = $('toast');
@@ -226,6 +276,7 @@ function apply(state) {
   F = st.focus || F;
   fAt = Date.now();
   $('focusStart').disabled = !st.connected;
+  $('resetBtn').disabled = !st.connected;
   demoOn = !!st.demo;
   $('demoBtn').disabled = !st.connected;
   $('demoBtn').textContent = demoOn ? 'STOP DEMO' : '\u25B6 PLAY DEMO';
@@ -242,28 +293,58 @@ function sw(id, on) {
 }
 
 function render() {
-  const pv = img(S.style, S.coat);
-  if ($('pv').getAttribute('src') !== pv) $('pv').src = pv;
+  const wear = S.wear ?? 31;
+  fillStack($('pv'), layers(S.style, S.coat, wear & unlocked(level), level));
   const hearts = '♥♥♥♡';
   $('plate').innerHTML = `<b></b><span>${hearts}</span>`;
   $('plate').firstChild.textContent = (S.catName ? S.catName + '  ' : '') + 'Lv' + level;
   $('lvl').textContent = 'LV ' + level;
   seg('focusMin', S.focusMin);
   renderFocus();
-  // coat tiles
+  // coat tiles (the last one is the original 8-bit cat)
   const box = $('coat');
   if (!box.children.length) {
-    for (const [v, label] of COATS) {
+    for (const [v, label] of [...COATS, ['8bit', '8-BIT']]) {
       const b = document.createElement('button');
       b.className = 'tile';
       b.dataset.v = v;
-      b.innerHTML = `<img alt="" src="${img('hd', v)}"><span>${label}</span>`;
-      b.onclick = () => save({ coat: v, style: 'hd' });
+      b.innerHTML = `<img alt="" src="${v === '8bit' ? img('8bit') : img('hd', v)}"><span>${label}</span>`;
+      b.onclick = () => save(v === '8bit' ? { style: '8bit' } : { coat: v, style: 'hd' });
       box.appendChild(b);
     }
   }
-  for (const b of box.children) b.setAttribute('aria-pressed', S.style !== '8bit' && b.dataset.v === S.coat);
-  seg('style', S.style);
+  for (const b of box.children) b.setAttribute('aria-pressed', S.style === '8bit' ? b.dataset.v === '8bit' : b.dataset.v === S.coat);
+  // wardrobe tiles: the cat wearing just that item
+  const wb = $('wardrobe');
+  if (!wb.children.length) {
+    for (const [k, bit, lv, label] of WEAR) {
+      const b = document.createElement('button');
+      b.className = 'tile';
+      b.dataset.bit = bit;
+      b.dataset.lv = lv;
+      b.innerHTML = `<div class="stack"></div><div class="mystery" hidden>?</div><span></span><span class="lock"></span>`;
+      b.dataset.label = label;
+      b.onclick = () => {
+        if (level < lv) return toast('UNLOCKS AT LV ' + lv, true);
+        save({ wear: (S.wear ?? 31) ^ bit });
+      };
+      wb.appendChild(b);
+    }
+  }
+  for (const b of wb.children) {
+    const bit = +b.dataset.bit, lv = +b.dataset.lv, open = level >= lv;
+    // locked items stay a mystery until the cat reaches their level
+    b.children[0].hidden = !open;
+    b.children[1].hidden = open;
+    if (open) fillStack(b.children[0], layers(S.style, S.coat, bit, 1));  // just the item (no fluff)
+    b.children[2].textContent = open ? b.dataset.label : '???';
+    b.setAttribute('aria-disabled', !open);
+    b.setAttribute('aria-pressed', open && !!(wear & bit));
+    b.lastChild.textContent = open ? (wear & bit ? 'ON' : 'OFF') : 'LV ' + lv;
+  }
+  $('wearLv').textContent = WEAR.filter(w => level >= w[2]).length + '/' + WEAR.length;
+  $('progLv').textContent = 'LV ' + level;
+  $('resetQ').textContent = 'RESET ' + (S.catName ? S.catName.toUpperCase() : 'YOUR CAT') + ' TO LV 1?';
   if (document.activeElement !== $('catName')) $('catName').value = S.catName || '';
   if (document.activeElement !== $('weatherLocation')) $('weatherLocation').value = S.weatherLocation || '';
   if (document.activeElement !== $('placeName')) $('placeName').value = S.placeName || '';
@@ -302,14 +383,30 @@ for (const t of document.querySelectorAll('[role=tab]')) {
     }
   };
 }
-for (const id of ['style', 'timeFormat', 'tempUnit']) for (const b of $(id).children) b.onclick = () => save({ [id]: b.dataset.v });
+for (const id of ['timeFormat', 'tempUnit']) for (const b of $(id).children) b.onclick = () => save({ [id]: b.dataset.v });
 $('focusStart').onclick = () => save({ focus: S.focusMin || 25 });
 $('demoBtn').onclick = async () => {
   await save({ demo: !demoOn }, true);
   toast(demoOn ? 'DEMO PLAYING!' : 'DEMO STOPPED');
   if (demoOn) setTimeout(load, 63000);  // the tour ends by itself after about a minute
 };
-$('focusStop').onclick = () => save({ focus: 0 });
+// cancelling gives no EXP (and the cat gets sad), so STOP asks once
+let stopAsk = 0;
+// reset progress: asks in a dialog first
+$('resetBtn').onclick = () => $('resetDlg').showModal();
+$('resetNo').onclick = () => $('resetDlg').close();
+$('resetYes').onclick = async () => {
+  $('resetDlg').close();
+  await save({ resetProgress: true }, true);
+  await load();
+  toast(level === 1 ? 'BACK TO LV 1' : "CAN'T REACH CAT", level !== 1);
+};
+$('focusStop').onclick = () => {
+  if (Date.now() < stopAsk) { stopAsk = 0; $('focusStop').textContent = 'STOP'; return save({ focus: 0 }); }
+  stopAsk = Date.now() + 3000;
+  $('focusStop').textContent = 'SURE? NO EXP';
+  setTimeout(() => { if (Date.now() >= stopAsk) $('focusStop').textContent = 'STOP'; }, 3100);
+};
 for (const id of ['cycleSec', 'sleepTimeout', 'focusMin']) for (const b of $(id).children) b.onclick = () => save({ [id]: +b.dataset.v });
 const CARDS = ['showWeatherCard', 'showPcCard', 'showFocusCard'];
 for (const id of [...CARDS, 'showCpuTemp', 'showGpu', 'startAtLogin']) {

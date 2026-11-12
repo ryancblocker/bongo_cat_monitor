@@ -38,6 +38,12 @@ def _gear(hx, hy, stage):
                                              d.ellipse([hx + 23, hy - 6, hx + 35, hy + 8], fill=255),
                                              d.line([(hx - 27, hy + 6), (hx - 13, hy + 13)], fill=255, width=2),
                                              d.ellipse([hx - 15, hy + 11, hx - 10, hy + 16], fill=255)), []))
+    if stage >= 4:  # the cape's collar tied under the chin: strip, two tails, gold clasp
+        front.append(("gear_tie", lambda d: (d.line([(hx - 25, hy + 12), (hx - 10, hy + 16), (hx, hy + 17), (hx + 10, hy + 16), (hx + 25, hy + 12)],
+                                                    fill=255, width=4, joint="curve"),
+                                             d.polygon([(hx - 1, hy + 17), (hx - 8, hy + 27), (hx - 3, hy + 28)], fill=255),
+                                             d.polygon([(hx + 1, hy + 17), (hx + 8, hy + 26), (hx + 3, hy + 28)], fill=255)), []))
+        front.append(("gear_clasp", lambda d: d.ellipse([hx - 3, hy + 14, hx + 3, hy + 20], fill=255), []))
     if stage >= 4:  # crown between the ears
         front.append(("gear_crown", lambda d: d.polygon([(hx - 11, hy - 16), (hx - 11, hy - 26), (hx - 5, hy - 21), (hx, hy - 30),
                                                           (hx + 5, hy - 21), (hx + 11, hy - 26), (hx + 11, hy - 16)], fill=255), []))
@@ -148,7 +154,8 @@ def _old(x, y):
 GEAR = {  # base, shade, highlight
     "gear_band": ("E84858", "B83048", "F88898"), "gear_knot": ("E84858", "B83048", "F88898"),
     "gear_set": ("3A3A4A", "26262F", "5A5A70"), "gear_cup": ("3A3A4A", "26262F", "58A0F0"),
-    "gear_crown": ("F8C038", "D09020", "FFF0A0"), "gear_cape": ("C83040", "A02030", "E05060"),
+    "gear_crown": ("F8C038", "D09020", "FFF0A0"), "gear_cape": ("C83040", "A02030", "E05060"), "gear_tie": ("C83040", "A02030", "E05060"),
+    "gear_clasp": ("F8C038", "D09020", "FFF0A0"),
 }
 
 

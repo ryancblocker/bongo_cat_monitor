@@ -243,6 +243,16 @@ static void expBar(Frame& f, int x, int y, int pct) {
   if (fw > 2) f.fill(bx + 2, y + 2, fw, 2, c565(0x98C8F8));  // shine
 }
 
+static void button(Frame& f, int bx, int by, int w, int h, uint32_t face, uint32_t hi, uint32_t shade) {
+  f.fill(bx + 2, by, w - 4, h, c565(INK));
+  f.fill(bx, by + 2, w, h - 4, c565(INK));
+  f.fill(bx + 2, by + 2, w - 4, h - 4, c565(face));
+  f.fill(bx + 2, by + 2, w - 4, 2, c565(hi));         // top highlight
+  f.fill(bx + 2, by + h - 6, w - 4, 4, c565(shade));  // pressed-edge shade
+}
+
+static bool stopAsk = false;
+
 static void focusCard(Frame& f, int x, int y, uint32_t now) {
   char buf[24];
   int pct = 0;
@@ -259,16 +269,17 @@ static void focusCard(Frame& f, int x, int y, uint32_t now) {
   f.text(lv, x + CARD_W - 12, y + 16, PX8, SUB, AL_R);
   expBar(f, x + 12, y + 28, pct);
   if (focus.active) {
-    f.text(buf, x + CARD_W / 2, y + 56, PX16, INK, AL_C);  // big countdown
-    f.text("KEEP GOING!", x + CARD_W / 2, y + 74, PX8, SUB, AL_C);
+    f.text(buf, x + 88, y + 56, PX16, INK, AL_C);  // big countdown
+    f.text(stopAsk ? "NO EXP!" : "KEEP GOING!", x + 88, y + 74, PX8, stopAsk ? 0xE84858 : SUB, AL_C);
+    // STOP (first tap turns it into SURE?, a second tap within 3 s cancels)
+    int bx = x + (FS_BTN_X - CARD_X);
+    if (stopAsk) button(f, bx, FS_BTN_Y, FS_BTN_W, FS_BTN_H, 0xE84858, 0xF88898, 0xB83048);
+    else button(f, bx, FS_BTN_Y, FS_BTN_W, FS_BTN_H, 0xF8F8F0, 0xFFFFFF, 0xC8D0DC);
+    f.text(stopAsk ? "SURE?" : "STOP", bx + FS_BTN_W / 2, FS_BTN_Y + FS_BTN_H / 2 - 2, PX8, stopAsk ? 0xFFFFFF : 0xE84858, AL_C);
   } else {
     // big START button
     int bx = x + (FC_BTN_X - CARD_X), by = FC_BTN_Y, w = FC_BTN_W, h = FC_BTN_H;
-    f.fill(bx + 2, by, w - 4, h, c565(INK));
-    f.fill(bx, by + 2, w, h - 4, c565(INK));
-    f.fill(bx + 2, by + 2, w - 4, h - 4, c565(GOLD));
-    f.fill(bx + 2, by + 2, w - 4, 2, c565(0xFCE088));      // top highlight
-    f.fill(bx + 2, by + h - 6, w - 4, 4, c565(0xD8A020));  // pressed-edge shade
+    button(f, bx, by, w, h, GOLD, 0xFCE088, 0xD8A020);
     int tx = bx + 22, ty = by + h / 2 - 2;                 // ▶ drawn in 2 px steps
     for (int i = 0; i < 6; i++) f.fill(tx + i * 2, ty - 10 + i * 2, 2, 20 - i * 4, c565(INK));
     f.text("START", bx + w / 2 + 12, ty, PX16, INK, AL_C);
@@ -300,12 +311,17 @@ void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
   // cat: body -> face -> desk -> paws -> effects (body, face and paws breathe together)
   const CatImg* const* L = CAT_TABLE[settings.style % 2][settings.coat % COAT_COUNT];
   int dy = cat.bob();
-  int stage = stageFor(catLevel);  // evolution: gear and fluff it has earned stay on
-  if (stage >= 3) f.cat(L[L_FLUFF], dy);
+  stopAsk = v.stopAsk;
+  uint8_t w = wornItems();  // wardrobe: what it has unlocked and is switched on
+  if (w & WEAR_CAPE) f.cat(L[L_W_CAPE], dy);
+  if (stageFor(catLevel) >= 3) f.cat(L[L_FLUFF], dy);  // fluffier from Lv 15 (part of the cat)
   f.cat(L[cat.body()], dy);
   f.cat(L[cat.face()], dy);
-  if (stage >= 2) f.cat(L[L_GEAR2 + stage - 2], dy);
-  f.cat(L[stage >= 4 && L[L_DESK_RGB] ? L_DESK_RGB : L_DESK]);
+  if (w & WEAR_BAND) f.cat(L[L_W_BAND], dy);
+  if (w & WEAR_HEADSET) f.cat(L[L_W_HEADSET], dy);
+  if (w & WEAR_CROWN) f.cat(L[L_W_CROWN], dy);
+  if (w & WEAR_CAPE) f.cat(L[L_W_TIE], dy);
+  f.cat(L[(w & WEAR_RGB) && L[L_DESK_RGB] ? L_DESK_RGB : L_DESK]);
   if (cat.paws() != L_COUNT) f.cat(L[cat.paws()], dy);
   if (cat.fx() != L_COUNT) f.cat(L[cat.fx()]);
   if (cat.fx2() != L_COUNT) f.cat(L[cat.fx2()]);

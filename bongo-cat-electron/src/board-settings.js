@@ -23,6 +23,7 @@ const RULES = {
     showGpu: v => typeof v === 'boolean' ? v : undefined,
     startAtLogin: v => typeof v === 'boolean' ? v : undefined,
     focusMin: v => int(v, 5, 120),
+    wear: v => int(v, 0, 31),  // wardrobe bits: 1 band, 2 headset, 4 crown, 8 cape, 16 RGB keyboard
 };
 
 function int(v, lo, hi) {
@@ -60,6 +61,7 @@ function setLine(s) {
         `h24=${s.timeFormat === '24' ? 1 : 0}`,
         `sleep=${int(s.sleepTimeout, 1, 60) ?? 5}`,
         `focus=${int(s.focusMin, 5, 120) ?? 25}`,
+        `wear=${int(s.wear, 0, 31) ?? 31}`,
     ].join('|');
 }
 

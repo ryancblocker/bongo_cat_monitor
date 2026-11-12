@@ -305,7 +305,7 @@ async function sendExtras() {
 function configState() {
   const s = settingsManager.getAllSettings();
   const pick = {};
-  for (const k of ['style', 'coat', 'catName', 'focusMin', 'brightness', 'cycleSec', 'showWeatherCard', 'showPcCard', 'showFocusCard',
+  for (const k of ['style', 'coat', 'catName', 'focusMin', 'wear', 'brightness', 'cycleSec', 'showWeatherCard', 'showPcCard', 'showFocusCard',
     'timeFormat', 'sleepTimeout', 'weatherLocation', 'placeName', 'tempUnit', 'showCpuTemp', 'showGpu', 'startAtLogin']) pick[k] = s[k];
   const ex = extrasMonitor ? extrasMonitor.getStatus() : {};
   return {
@@ -328,6 +328,11 @@ async function applyChanges(changes) {
   if (changes && 'demo' in changes && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
     await esp32SerialManager.sendCommand(changes.demo ? 'DEMO' : 'DEMO:0');
     await new Promise(r => setTimeout(r, 150));
+  }
+  // resetProgress: {resetProgress: true} puts the cat back to Lv 1 (the page asks first)
+  if (changes && changes.resetProgress === true && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
+    await esp32SerialManager.sendCommand('RESET_PROGRESS');
+    await new Promise(r => setTimeout(r, 200));  // the board answers with EVT:level=1
   }
   // focus: {focus: minutes} starts a session on the board, {focus: 0} stops it
   if (changes && 'focus' in changes && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {

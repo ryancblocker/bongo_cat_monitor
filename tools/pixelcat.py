@@ -328,6 +328,38 @@ def paint_yawn(coat, wide):
     return im
 
 
+def paint_sad(coat):
+    """cancelled focus session: worried brows, a small frown instead of the ω, a tear"""
+    im = paint_face("face_stock", coat)
+    p = im.load()
+    x0, y0, x1, y1 = MOUTH
+    for y in range(y0 - 1, y1 + 2):  # remove the ω (keep the nose: pink)
+        for x in range(x0 - 1, x1 + 2):
+            if p[x, y][3] and p[x, y][:3] != PINK and abs(x - EYE_L[0]) > 4 and abs(x - EYE_R[0]) > 4:
+                p[x, y] = (0, 0, 0, 0)
+    line = C("D7D7E2" if coat in ("black", "siamese") else COAT[coat]["line"]) + (255,)
+    (lx, ly), (rx, ry) = EYE_L, EYE_R
+    k = (ry - ly) / (rx - lx)  # head tilt
+    d = ImageDraw.Draw(im)
+    cx = (x0 + x1) / 2
+    cy = (y0 + y1) / 2 + 2
+    # frown: a little upside-down U, following the head tilt
+    pts = [(cx - 4, cy + 2 - 4 * k), (cx - 3, cy), (cx - 1, cy - 1), (cx + 1, cy - 1 + 2 * k), (cx + 3, cy + 2 * k), (cx + 4, cy + 2 + 4 * k)]
+    d.line([(round(x), round(y)) for x, y in pts], fill=line, width=1)
+    # worried brows: inner ends raised
+    for (ex, ey), side in ((EYE_L, 1), (EYE_R, -1)):
+        # mirrored on screen: "/  \" (inner ends up), a bit above each eye
+        ox, oy = round(ex), round(ey - 8)
+        for t in (0, 1):
+            d.line([(ox - 4 * side, oy + 2 + t), (ox + 3 * side, oy - 1 + t)], fill=line, width=1)
+    # tear under the right eye
+    tx, ty = int(rx + 3), int(ry + 6)
+    for (x, y) in ((tx, ty), (tx, ty + 1), (tx - 1, ty + 2), (tx, ty + 2), (tx + 1, ty + 2), (tx, ty + 3)):
+        p[x, y] = C("58A0F0") + (255,)
+    p[tx, ty + 2] = C("B8E0FF") + (255,)
+    return im
+
+
 # ------------------------------------------------------------------ desk + keyboard
 def desk():
     """Wooden desk below a straight table edge, and the original keyboard.
@@ -446,7 +478,8 @@ def zzz(frame):
 LAYERS = ["body", "body_twitch", "face_stock", "face_happy", "face_blink", "face_sleepy", "face_look_l",
           "face_look_r", "face_yawn", "face_yawn_half", "desk", "paws_up", "paws_left", "paws_right", "fx_left", "fx_right",
           "fx_zzz0", "fx_zzz1", "fx_zzz2", "fx_heart0", "fx_heart1",
-          "gear2", "gear3", "gear4", "fluff", "desk_rgb", "stand1", "stand2", "stand3", "stand4"]
+          "face_sad", "w_cape", "w_band", "w_headset", "w_crown", "w_tie", "fluff", "desk_rgb",
+          "stand1", "stand2", "stand3", "stand4"]
 STAND_ZOOM = [0.62, 0.70, 0.78, 0.86]  # the evolution scene's cat grows a size each stage
 
 
@@ -462,6 +495,7 @@ def hd_layers():
         out[f"hd/{coat}/face_look_r"] = paint_face("face_stock", coat, look=1)
         out[f"hd/{coat}/face_yawn"] = paint_yawn(coat, wide=True)
         out[f"hd/{coat}/face_yawn_half"] = paint_yawn(coat, wide=False)
+        out[f"hd/{coat}/face_sad"] = paint_sad(coat)
         for w in ("up", "left", "right"):
             out[f"hd/{coat}/paws_{w}"] = paint_fur_layer(f"paws_{w}", coat, paws=True)
         out[f"hd/{coat}/fluff"] = evolution.fluff(coat, sys.modules[__name__])
@@ -469,8 +503,8 @@ def hd_layers():
             out[f"hd/{coat}/stand{st}"] = heropose.build("stand", coat, sys.modules[__name__], stage=st, zoom=STAND_ZOOM[st - 1])
     out["hd/-/desk"] = d
     out["hd/-/desk_rgb"] = evolution.desk_rgb(d)
-    for st in (2, 3, 4):
-        out[f"hd/-/gear{st}"] = evolution.gear(st, sys.modules[__name__])
+    for k, im in evolution.wardrobe(sys.modules[__name__]).items():
+        out[f"hd/-/{k}"] = im
     for n in ("fx_left", "fx_right"):
         out[f"hd/-/{n}"] = fx(n)
     for f in range(3):

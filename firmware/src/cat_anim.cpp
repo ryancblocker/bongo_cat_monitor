@@ -44,6 +44,14 @@ void CatAnim::celebrate(uint32_t now) {
   mood = 100;
 }
 
+void CatAnim::sad(uint32_t now) {
+  pokeEnd = 0;
+  yawnEnd = 0;
+  sadEnd = now + 8000;
+  mood = max(0.0f, mood - 50);
+  setStage(AWAKE, now);
+}
+
 void CatAnim::force(uint8_t s, uint32_t now, bool yawn) {
   typingNow = false;
   progress = false;
@@ -126,6 +134,7 @@ CatLayer CatAnim::face() const {
     return (left > 1300 || left < 300) ? L_FACE_YAWN_HALF : L_FACE_YAWN;
   }
   if (stage >= DROWSY) return L_FACE_SLEEPY;
+  if (nowMs < sadEnd) return L_FACE_SAD;
   if (blinking) return L_FACE_BLINK;
   if (nowMs < pokeEnd || (streakOn && typingNow)) return L_FACE_HAPPY;
   if (look < 0) return L_FACE_LOOK_L;

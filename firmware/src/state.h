@@ -11,8 +11,15 @@ struct Settings {          // persisted in NVS ("bongo")
   uint8_t cards = 7;       // bit 0 weather card, bit 1 PC card, bit 2 focus card
   bool h24 = false;
   uint8_t sleepMin = 5;    // minutes without typing before the cat dozes off
-  uint8_t focusMin = 25;   // focus session length (OPTIONS screen / phone)
+  uint8_t focusMin = 25;   // focus session length (phone page)
+  uint8_t wear = 31;       // wardrobe items switched on (they also need the level, see wornItems)
 };
+
+// Wardrobe: items unlock as the cat evolves, and each can be switched off on the phone page.
+enum Wear : uint8_t { WEAR_BAND = 1, WEAR_HEADSET = 2, WEAR_CROWN = 4, WEAR_CAPE = 8, WEAR_RGB = 16 };
+inline uint8_t unlockedItems(int level) {
+  return (level >= 5 ? WEAR_BAND : 0) | (level >= 15 ? WEAR_HEADSET : 0) | (level >= 30 ? WEAR_CROWN | WEAR_CAPE | WEAR_RGB : 0);
+}
 
 // Focus timer: finish a session and the cat levels up.
 struct Focus {
@@ -54,6 +61,7 @@ extern PcStats pc;
 extern Clock clk;
 extern Focus focus;
 extern uint16_t catLevel;        // persisted separately in NVS ("lvl"), survives settings changes
+inline uint8_t wornItems() { return settings.wear & unlockedItems(catLevel); }
 extern uint32_t levelUpUntil;    // millis() until which the "grew to level N" box shows
 extern char configUrl[96];     // phone config page, from the PC ("" = app not running)
 extern uint32_t lastPcMsg;     // millis() of the last line from the PC

@@ -13,6 +13,8 @@ constexpr int BR_Y = 268, BR_MINUS_X = 14, BR_BAR_X = 54, BR_BAR_W = 132, BR_PLU
 enum Card : uint8_t { CARD_WEATHER = 0, CARD_PC = 1, CARD_FOCUS = 2 };
 // big START button on the focus card (screen coordinates); the rest of the card is left/right halves
 constexpr int FC_BTN_X = CARD_X + 46, FC_BTN_Y = CARD_Y + 44, FC_BTN_W = 136, FC_BTN_H = 34;
+// STOP button next to the countdown while a session runs (tap twice: it asks "SURE?" first)
+constexpr int FS_BTN_X = CARD_X + 144, FS_BTN_Y = CARD_Y + 42, FS_BTN_W = 54, FS_BTN_H = 30;
 
 struct MainView {
   int card = CARD_WEATHER;  // card showing (or sliding out)
@@ -20,6 +22,7 @@ struct MainView {
   float slide = 0;          // 0..1 transition progress
   int dir = 1;              // +1 slide left (next card), -1 slide right (previous card)
   int nCards = 3;
+  bool stopAsk = false;     // the focus card's STOP was tapped once
   uint32_t t = 0;           // millis(), for blinking arrows
 };
 

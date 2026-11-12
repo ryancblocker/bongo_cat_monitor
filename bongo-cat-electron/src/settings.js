@@ -60,6 +60,7 @@ class SettingsManager {
                 showFocusCard: { type: 'boolean', default: true },
                 configKey: { type: 'string', default: '' },
                 focusMin: { type: 'number', minimum: 5, maximum: 120, default: 25 },
+                wear: { type: 'number', minimum: 0, maximum: 31, default: 31 },  // wardrobe items switched on
                 catLevel: { type: 'number', minimum: 1, default: 1 },  // reported by the board
                 esp32Settings: {
                     type: 'object',

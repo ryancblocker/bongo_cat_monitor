@@ -18,6 +18,7 @@ class CatAnim {
   void streak(bool on) { streakOn = on; }
   void poke(uint32_t now);
   void celebrate(uint32_t now);  // level up: long happy wave with hearts, mood full
+  void sad(uint32_t now);        // focus session cancelled: sad face with a tear, mood drops
   void force(uint8_t stage, uint32_t now, bool yawn = false);  // demo: jump to a sleep stage
   void update(uint32_t now, float dt, uint8_t sleepMin, uint32_t lastPcMsg);
 
@@ -47,7 +48,7 @@ class CatAnim {
   uint32_t blinkAt = 3000, blinkEnd = 0, twitchAt = 12000, twitchEnd = 0;
   int8_t look = 0;  // -1 left, 0 ahead, 1 right
   uint32_t lookAt = 6000, lookEnd = 0;
-  uint32_t yawnEnd = 0, pokeEnd = 0, zzzAt = 0, heartAt = 0;
+  uint32_t yawnEnd = 0, pokeEnd = 0, sadEnd = 0, zzzAt = 0, heartAt = 0;
   uint8_t zzz = 0, heart = 0;
   float mood = 60;  // 0..100
   void setStage(uint8_t s, uint32_t now) { stage = s; stageAt = now; }

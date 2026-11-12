@@ -57,13 +57,14 @@ def export(L, compose):
             if layer.startswith("stand"):  # the 8-bit cat borrows the white HD full-body cat
                 k = f"hd/{coat if style == 'hd' else 'white'}/{layer}"
                 return "&" + cname(k) if k in packed else "nullptr"
-            if style == "8bit" and layer.startswith("gear"):  # same geometry: the gear fits the 8-bit cat too
+            if style == "8bit" and layer.startswith("w_"):  # same geometry: the wardrobe fits the 8-bit cat too
                 return "&" + cname(f"hd/-/{layer}")
             if style == "8bit" and layer in ("fluff", "desk_rgb"):
                 return "nullptr"
             if style == "8bit":
                 # the original has no glance/yawn/heart frames: fall back to close ones
-                layer = {"face_look_l": "face_stock", "face_look_r": "face_stock", "face_yawn": "face_sleepy", "face_yawn_half": "face_sleepy"}.get(layer, layer)
+                layer = {"face_look_l": "face_stock", "face_look_r": "face_stock", "face_yawn": "face_sleepy", "face_yawn_half": "face_sleepy",
+                         "face_sad": "face_sleepy"}.get(layer, layer)
                 k = f"8bit/-/{layer}"
             else:
                 k = f"hd/{coat}/{layer}" if f"hd/{coat}/{layer}" in packed else f"hd/-/{layer}"
@@ -102,4 +103,26 @@ def export(L, compose):
     for n in ("body", "face_stock", "desk", "paws_up"):
         eight.alpha_composite(layers[f"8bit/-/{n}"])
     save(eight.resize((512, 512), Image.NEAREST), "8bit.png")
+
+    # layered preview for the phone page (transparent, same crop), stacked back to front:
+    #   w_cape, <coat>_fluff, <coat>_base, w_band, w_headset, w_crown, w_tie, desk | desk_rgb, <coat>_front
+    def save_t(im, name):
+        im.resize((512, 512), Image.NEAREST).crop((0, 40, 512, 440)).resize((256, 200), Image.NEAREST).save(os.path.join(PREV, name))
+    def stack(names, get):
+        im = Image.new("RGBA", (128, 128))
+        for n in names:
+            l = get(n)
+            if l is not None:
+                im.alpha_composite(l if l.size == (128, 128) else l.resize((128, 128), Image.NEAREST))
+        return im
+    for coat in pc.COATS:
+        g = lambda n: L.get(f"hd/{coat}/{n}") or L.get(f"hd/-/{n}")
+        save_t(stack(["body", "face_stock"], g), f"{coat}_base.png")
+        save_t(stack(["paws_up"], g), f"{coat}_front.png")
+        save_t(stack(["fluff"], g), f"{coat}_fluff.png")
+    g8 = lambda n: layers.get(f"8bit/-/{n}")
+    save_t(stack(["body", "face_stock"], g8), "8bit_base.png")
+    save_t(stack(["desk", "paws_up"], g8), "8bit_front.png")
+    for n in ("desk", "desk_rgb", "w_cape", "w_band", "w_headset", "w_crown", "w_tie"):
+        save_t(L[f"hd/-/{n}"], f"{n}.png")
     print("previews ->", PREV)
