@@ -15,7 +15,7 @@ struct BongoCatSettings {
     bool show_ram = true;
     bool show_wpm = true;
     bool show_time = true;
-    bool time_format_24h = true;
+    bool time_format_24h = false;
     int sleep_timeout_minutes = 5;
     float animation_sensitivity = 1.0;
     uint32_t checksum = 0;  // For validation
@@ -59,11 +59,25 @@ lv_obj_t * cpu_label = NULL;
 lv_obj_t * ram_label = NULL;
 lv_obj_t * wpm_label = NULL;
 lv_obj_t * time_label = NULL;
+// Extras (Ross edition): GPU row, date, weather. Hidden until the PC sends data.
+lv_obj_t * gpu_label = NULL;
+lv_obj_t * date_label = NULL;
+lv_obj_t * wx1_label = NULL;   // temperature, e.g. "54F"  (row 0, right)
+lv_obj_t * wx2_label = NULL;   // condition, e.g. "CLOUDY" (row 1, right)
+
+// Screen layout. unscii_16 is 16 px per character, so a full row holds 15
+// characters. The cat's ears start at y=138 (sprite row 14 x 4 + 82), so the
+// stat rows (left side) can stack down to y=104. Sleep "Zzz" effects use the
+// right side from y=82, so nothing on the right goes below the top two rows.
+#define ROW_Y(n) (4 + (n) * 20)
 
 // Stats data
 int cpu_usage = 0;
 int ram_usage = 0;
 int wpm_speed = 0;
+int cpu_temp = -1;   // -1 = unknown (not shown)
+int gpu_usage = -1;
+int gpu_temp = -1;
 String current_time_str = "00:00";
 bool time_initialized = false;  // Track if we've received time from Python
 
@@ -80,15 +94,81 @@ void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color
     lv_disp_flush_ready(disp);
 }
 
+// CPU row: "CPU: 45%" or "CPU: 45% 58C" when the PC reports a temperature
+void refreshCpuLabel() {
+    if (!cpu_label) return;
+    if (cpu_temp >= 0) {
+        lv_label_set_text_fmt(cpu_label, "CPU: %d%% %dC", cpu_usage, cpu_temp);
+    } else {
+        lv_label_set_text_fmt(cpu_label, "CPU: %d%%", cpu_usage);
+    }
+}
+
+// GPU row: hidden when the PC has no GPU reading at all
+void refreshGpuLabel() {
+    if (!gpu_label) return;
+    if (gpu_usage < 0 && gpu_temp < 0) {
+        lv_obj_add_flag(gpu_label, LV_OBJ_FLAG_HIDDEN);
+        layoutStatRows();
+        return;
+    }
+    char u[8], t[8];
+    if (gpu_usage >= 0) snprintf(u, sizeof(u), "%d%%", gpu_usage); else snprintf(u, sizeof(u), "--");
+    if (gpu_temp >= 0)  snprintf(t, sizeof(t), " %dC", gpu_temp);  else t[0] = 0;
+    lv_label_set_text_fmt(gpu_label, "GPU: %s%s", u, t);
+    lv_obj_clear_flag(gpu_label, LV_OBJ_FLAG_HIDDEN);
+    layoutStatRows();
+}
+
+// Stack the visible stat rows (CPU, GPU, RAM, WPM) from row 2 down, so a
+// hidden row (e.g. no GPU) doesn't leave a gap.
+void layoutStatRows() {
+    lv_obj_t* rows[] = { cpu_label, gpu_label, ram_label, wpm_label };
+    int n = 2;
+    for (lv_obj_t* r : rows) {
+        if (!r) continue;
+        if (!lv_obj_has_flag(r, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_align(r, LV_ALIGN_TOP_LEFT, 5, ROW_Y(n));
+            n++;
+        }
+    }
+}
+
+// Set a text label from the PC; an empty string hides it. Max 15 characters
+// (one full row); the PC keeps left + right pairs within a row.
+void setOptionalLabel(lv_obj_t* label, String text) {
+    if (!label) return;
+    text.trim();
+    if (text.length() > 15) text = text.substring(0, 15);
+    if (text.length() == 0) {
+        lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_label_set_text(label, text.c_str());
+        lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// Read "KEY:123" out of "A:1,KEY:123,B:2"; returns -1 when missing
+int parseIntField(const String& s, const char* key) {
+    String k = String(key) + ":";
+    int i = s.startsWith(k) ? 0 : s.indexOf("," + k);
+    if (i < 0) return -1;
+    if (i > 0) i += 1;  // skip the comma
+    int start = i + k.length();
+    int end = s.indexOf(",", start);
+    String v = (end < 0) ? s.substring(start) : s.substring(start, end);
+    v.trim();
+    if (v.length() == 0) return -1;
+    return v.toInt();
+}
+
 // Update system stats display
 void updateSystemStats(int cpu, int ram, int wpm) {
     cpu_usage = cpu;
     ram_usage = ram;
     wpm_speed = wpm;
     
-    if (cpu_label) {
-        lv_label_set_text_fmt(cpu_label, "CPU: %d%%", cpu);
-    }
+    refreshCpuLabel();
     if (ram_label) {
         lv_label_set_text_fmt(ram_label, "RAM: %d%%", ram);
     }
@@ -111,7 +191,7 @@ void updateTimeDisplay() {
             if (hour == 0) hour = 12;      // 00:xx -> 12:xx AM
             else if (hour > 12) hour -= 12; // 13:xx -> 1:xx PM
             
-            display_time = String(hour) + ":" + minute + " " + ampm;
+            display_time = String(hour) + ":" + minute + ampm;  // "9:41PM" (no space: row is shared with the temperature)
         }
         
         lv_label_set_text(time_label, display_time.c_str());
@@ -175,7 +255,7 @@ void resetSettings() {
     settings.show_ram = true;
     settings.show_wpm = true;
     settings.show_time = true;
-    settings.time_format_24h = true;
+    settings.time_format_24h = false;
     settings.sleep_timeout_minutes = 5;
     settings.animation_sensitivity = 1.0;
     settings.checksum = calculateChecksum(&settings);
@@ -221,6 +301,7 @@ void updateDisplayVisibility() {
         }
         Serial.println("🕐 Time visibility updated: " + String(settings.show_time ? "ON" : "OFF"));
     }
+    layoutStatRows();
 }
 
 // Handle serial commands from Python script
@@ -339,6 +420,26 @@ void handleSerialCommands() {
             // Handle WPM display updates
             wpm_speed = command.substring(4).toInt();
             
+        } else if (command.startsWith("HW:")) {
+            // Extras: HW:CPUT:58,GPU:63,GPUT:71   (-1 or missing = unknown)
+            String hw = command.substring(3);
+            cpu_temp = parseIntField(hw, "CPUT");
+            gpu_usage = parseIntField(hw, "GPU");
+            gpu_temp = parseIntField(hw, "GPUT");
+            refreshCpuLabel();
+            refreshGpuLabel();
+
+        } else if (command.startsWith("DATE:")) {
+            // Extras: DATE:THU 11/12   (empty = hide)
+            setOptionalLabel(date_label, command.substring(5));
+
+        } else if (command.startsWith("WX:")) {
+            // Extras: WX:54F|CLOUDY   (temperature | condition; empty = hide)
+            String wx = command.substring(3);
+            int bar = wx.indexOf('|');
+            setOptionalLabel(wx1_label, bar < 0 ? wx : wx.substring(0, bar));
+            setOptionalLabel(wx2_label, bar < 0 ? String("") : wx.substring(bar + 1));
+
         } else if (command == "PING") {
             Serial.println("PONG");
             
@@ -827,6 +928,16 @@ void setup() {
     Serial.println("✅ Bongo Cat Ready!");
 }
 
+lv_obj_t* makeExtraLabel(lv_align_t align, int x, int y) {
+    lv_obj_t* label = lv_label_create(screen);
+    lv_label_set_text(label, "");
+    lv_obj_set_style_text_font(label, &lv_font_unscii_16, 0);
+    lv_obj_set_style_text_color(label, lv_color_black(), 0);
+    lv_obj_align(label, align, x, y);
+    lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+    return label;
+}
+
 void createBongoCat() {
     screen = lv_scr_act();
     
@@ -852,27 +963,36 @@ void createBongoCat() {
     lv_label_set_text(cpu_label, "CPU: 0%");
     lv_obj_set_style_text_font(cpu_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(cpu_label, lv_color_black(), 0);
-    lv_obj_align(cpu_label, LV_ALIGN_TOP_LEFT, 5, 5);
+    lv_obj_align(cpu_label, LV_ALIGN_TOP_LEFT, 5, ROW_Y(2));
     
     ram_label = lv_label_create(screen);
     lv_label_set_text(ram_label, "RAM: 0%");
     lv_obj_set_style_text_font(ram_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(ram_label, lv_color_black(), 0);
-    lv_obj_align(ram_label, LV_ALIGN_TOP_LEFT, 5, 25);
+    lv_obj_align(ram_label, LV_ALIGN_TOP_LEFT, 5, ROW_Y(4));
     
     wpm_label = lv_label_create(screen);
     lv_label_set_text(wpm_label, "WPM: 0");
     lv_obj_set_style_text_font(wpm_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(wpm_label, lv_color_black(), 0);
-    lv_obj_align(wpm_label, LV_ALIGN_TOP_LEFT, 5, 45);
+    lv_obj_align(wpm_label, LV_ALIGN_TOP_LEFT, 5, ROW_Y(5));
     
     // Create time label (top right) - bigger pixelated font
     time_label = lv_label_create(screen);
     lv_label_set_text(time_label, "00:00");
     lv_obj_set_style_text_font(time_label, &lv_font_unscii_16, 0);
     lv_obj_set_style_text_color(time_label, lv_color_black(), 0);
-    lv_obj_align(time_label, LV_ALIGN_TOP_RIGHT, -5, 5);
+    lv_obj_align(time_label, LV_ALIGN_TOP_LEFT, 5, ROW_Y(0));
     
+    // Extras (hidden until the PC sends them)
+    gpu_label = makeExtraLabel(LV_ALIGN_TOP_LEFT, 5, ROW_Y(3));
+    // Row 0: time (left) + temperature (right). Row 1: date (left) + condition (right).
+    // Worst case "12:59PM" + "100F" and "WED 30" + "DRIZZLE" both leave a gap.
+    wx1_label = makeExtraLabel(LV_ALIGN_TOP_RIGHT, -5, ROW_Y(0));
+    date_label = makeExtraLabel(LV_ALIGN_TOP_LEFT, 5, ROW_Y(1));
+    wx2_label = makeExtraLabel(LV_ALIGN_TOP_RIGHT, -5, ROW_Y(1));
+    layoutStatRows();
+
     // Initial render
     sprite_render_layers(&sprite_manager, cat_canvas, millis());
 }
