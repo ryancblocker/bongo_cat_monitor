@@ -34,7 +34,9 @@ class Frame {
   void blendCircle(float cx, float cy, float r, uint16_t c, uint8_t a);
   void blendLine(float x0, float y0, float x1, float y1, uint16_t c, uint8_t a);
   void blendAll(uint16_t c, uint8_t a);  // whole strip (lightning flash)
-  void cat(const CatImg* img, int dy = 0);
+  void cat(const CatImg* img, int dy = 0, int dx = 0);
+  // silhouette of a cat layer in one colour (aura / glow); a = alpha 0..255
+  void catTint(const CatImg* img, int dx, int dy, uint16_t c, uint8_t a);
 
   // pixel-art helpers (no anti-aliasing)
   void fill(int x, int y, int w, int h, uint16_t c);

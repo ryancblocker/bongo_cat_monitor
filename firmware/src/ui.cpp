@@ -386,6 +386,14 @@ void drawSettings(Frame& f, uint32_t t) {
   (void)t;
 }
 
+void drawCaption(Frame& f, const char* text, uint32_t t) {
+  if (!f.vis(286, 30)) return;
+  box(f, 6, 286, 228, 30);
+  f.text("DEMO", 18, 301, PX8, SUB);
+  f.text(RIGHT, 56 + (((t / 450) & 1) ? 2 : 0), 301, PX8, INK);
+  f.text(text, 72, 301, PX8, INK, AL_L, 150);
+}
+
 void drawMessage(Frame& f, const char* title, const char* sub) {
   f.fill(0, f.oy, SW, STRIP, c565(HDR));
   box(f, 10, 116, 220, 80);

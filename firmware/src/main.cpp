@@ -7,6 +7,7 @@
 //   SET:style=hd|coat=calico|name=Mochi|bright=200|cycle=8|cards=3|h24=0|sleep=5|focus=25
 //   URL:http://192.168.1.20:8787/c/abc123/
 //   FOCUS:<minutes>  start a focus session (FOCUS:0 stops it)
+//   DEMO  tour of every screen and animation (DEMO:0 or a tap stops it)   LEVELUP  preview the level-up
 //   SPEED:<ms>  STOP  IDLE_START  STREAK_ON  STREAK_OFF  HEARTBEAT  PING  SHOT  DBG  UI:settings
 // board -> PC:
 //   HELLO:bongo2 (boot)   PONG   EVT:bright=180   EVT:level=3
@@ -16,6 +17,7 @@
 #include <Preferences.h>
 
 #include "cat_anim.h"
+#include "levelup_fx.h"
 #include "render.h"
 #include "state.h"
 #include "ui.h"
@@ -42,6 +44,114 @@ static Screen screen = Screen::Main;
 static bool settingsDirty = true, shotPending = false;
 static uint32_t saveAt = 0, cardSince = 0, settingsSince = 0;
 static float frameMs = 0;  // smoothed render time
+static LevelUpFx levelUp;
+static bool levelUpReal = false;  // false = demo/preview: don't show the "grew to" box after
+
+// ------------------------------------------------------------------ demo tour
+// Shows every screen and animation for ~1 minute without touching the real data:
+// weather, PC stats, settings and the focus timer are backed up and restored, and
+// anything the PC sends meanwhile goes into the backups.
+struct Demo {
+  bool on = false;
+  int step = -1;
+  uint32_t stepAt = 0;
+  Weather wx;
+  PcStats pc;
+  Settings set;
+  Focus fo;
+} demo;
+
+struct DemoStep { uint16_t ms; const char* caption; };
+static const DemoStep STEPS[] = {
+    {3000, "HELLO!"}, {3000, "TYPING"}, {3000, "TYPING FAST"}, {3500, "PC STATS"},
+    {2500, "SOME SUN"}, {2500, "CLOUDY"}, {2500, "RAIN"}, {3500, "STORM"}, {2500, "SNOW"},
+    {2500, "FOG"}, {3000, "STARRY NIGHT"}, {2500, "PET ME!"}, {2200, "YAWN..."}, {3500, "ZZZ..."},
+    {3000, "FOCUS TIMER"}, {4800, "LEVEL UP!"},
+    {1100, "WHITE"}, {1100, "BLACK"}, {1100, "GREY"}, {1100, "ORANGE TABBY"}, {1100, "CALICO"},
+    {1100, "TUXEDO"}, {1100, "SIAMESE"}, {1100, "CREAM"}, {1600, "ORIGINAL 8-BIT"}, {3000, "OPTIONS"},
+};
+static const int N_STEPS = sizeof(STEPS) / sizeof(STEPS[0]);
+static const int STEP_COATS = 16, STEP_8BIT = 24, STEP_OPTIONS = 25, STEP_LEVELUP = 15;
+
+static void demoWeather(int code, bool day) {
+  weather.valid = true;
+  weather.code = code;
+  weather.day = day;
+  weather.temp = code >= 71 && code <= 77 ? 28 : 54;
+  weather.hi = weather.temp + 6;
+  weather.lo = weather.temp - 13;
+  weather.wind = code >= 95 ? 24 : 8;
+  weather.hum = code >= 51 ? 88 : 40;
+  if (!weather.place[0]) strlcpy(weather.place, "HIGHLANDS RANCH", sizeof weather.place);
+}
+
+static void demoStop() {
+  if (!demo.on) return;
+  demo.on = false;
+  weather = demo.wx;
+  pc = demo.pc;
+  uint8_t bright = settings.bright;
+  settings = demo.set;
+  settings.bright = bright;
+  focus = demo.fo;
+  levelUp.cancel();
+  screen = Screen::Main;
+  view.next = -1;
+  cardSince = millis();
+  cat.stop(millis());
+  settingsDirty = true;
+  Serial.println("EVT:demo=end");
+}
+
+static void demoStart() {
+  if (demo.on) return;
+  demo = Demo();
+  demo.wx = weather;
+  demo.pc = pc;
+  demo.set = settings;
+  demo.fo = focus;
+  demo.on = true;
+  pc = PcStats();  // sample stats for the PC card
+  pc.valid = true;
+  pc.cpu = 37, pc.ram = 52, pc.wpm = 88, pc.cpuT = 140, pc.gpu = 71, pc.gpuT = 158;
+  pc.at = millis();
+  Serial.println("EVT:demo=start");
+}
+
+static void demoTick(uint32_t now) {
+  if (!demo.on) return;
+  if (demo.step < 0 || now - demo.stepAt >= STEPS[demo.step].ms) {
+    demo.step++;
+    demo.stepAt = now;
+    if (demo.step >= N_STEPS) return demoStop();
+    int s = demo.step;
+    // things that happen once at the start of a step
+    screen = s == STEP_OPTIONS ? Screen::Settings : Screen::Main;
+    settingsDirty = true;
+    if (s == 0) { demoWeather(0, true); view.card = CARD_WEATHER; cat.stop(now); }
+    if (s == 3) view.card = CARD_PC;
+    if (s == 4) { view.card = CARD_WEATHER; cat.stop(now); }
+    static const int codes[] = {2, 3, 61, 95, 71, 45};
+    if (s >= 4 && s <= 9) demoWeather(codes[s - 4], true);
+    if (s == 10) demoWeather(0, false);
+    if (s == 11) { demoWeather(0, true); cat.poke(now); }
+    if (s == 14) { focus.active = true; focus.startMs = now - 7 * 60000UL; focus.durMs = 25 * 60000UL; }
+    if (s == STEP_LEVELUP) { focus = demo.fo; levelUp.start(now, catLevel, catLevel + 1); levelUpReal = false; }
+    if (s >= STEP_COATS && s < STEP_8BIT) { settings.style = STYLE_HD; settings.coat = s - STEP_COATS; cat.stop(now); }
+    if (s == STEP_8BIT) settings.style = STYLE_EIGHTBIT;
+    if (s == STEP_OPTIONS) settings.style = demo.set.style, settings.coat = demo.set.coat;
+  }
+  // things that hold for the whole step
+  int s = demo.step;
+  lastPcMsg = now;  // keep the cat from drifting off on its own
+  cardSince = now;  // no auto-cycling: the script picks the card
+  view.next = -1;
+  if (s == 1 || s == 3) cat.typing(380, now);
+  if (s == 2) { cat.streak(true); cat.typing(90, now); }
+  if (s == 3) cat.streak(false);
+  if (s == 12) cat.force(2, now, true);
+  if (s == 13) cat.force(3, now);
+}
 
 // ------------------------------------------------------------------ settings in NVS
 static const uint32_t SETTINGS_VER = 4;  // 4: focus length
@@ -145,6 +255,9 @@ static void handleLine(String line) {
   if (!line.length()) return;
   uint32_t now = millis();
   lastPcMsg = now;
+  bool typingCmd = line.startsWith("SPEED:") || line == "STOP" || line.startsWith("IDLE") || line.startsWith("STREAK");
+  if (demo.on && typingCmd) return;  // the demo script drives the cat
+  if (line.startsWith("FOCUS:")) demoStop();
   if (line.startsWith("SPEED:")) cat.typing(line.substring(6).toInt(), now);
   else if (line == "STOP") cat.stop(now);
   else if (line == "IDLE_START" || line == "IDLE") cat.idleStart(now);
@@ -152,6 +265,9 @@ static void handleLine(String line) {
   else if (line == "STREAK_OFF") cat.streak(false);
   else if (line == "PING") Serial.println("PONG");
   else if (line == "SHOT") shotPending = true;
+  else if (line == "DEMO") demoStart();
+  else if (line == "DEMO:0") demoStop();
+  else if (line == "LEVELUP") { levelUp.start(now, catLevel, catLevel + 1); levelUpReal = false; }
   else if (line.startsWith("FOCUS:")) {
     int m = line.substring(6).toInt();
     if (m > 0) startFocus(m);
@@ -176,6 +292,7 @@ static void handleLine(String line) {
   } else if (line.startsWith("DATE:")) {
     strlcpy(clk.date, line.substring(5).c_str(), sizeof(clk.date));
   } else if (line.startsWith("WX2:")) {
+    Weather& weather = demo.on ? demo.wx : ::weather;
     String s = line.substring(4);
     weather.code = ifield(s, "code", 0);
     weather.day = ifield(s, "day", 1) != 0;
@@ -191,8 +308,9 @@ static void handleLine(String line) {
     weather.valid = s.length() > 0 && field(s, "t").length() > 0;
     weather.at = now;
   } else if (line.startsWith("WX2")) {  // "WX2:" with nothing = weather turned off
-    weather.valid = false;
+    (demo.on ? demo.wx : weather).valid = false;
   } else if (line.startsWith("PC:")) {
+    PcStats& pc = demo.on ? demo.pc : ::pc;
     String s = line.substring(3);
     pc.cpu = ifield(s, "cpu", 0);
     pc.ram = ifield(s, "ram", 0);
@@ -205,7 +323,9 @@ static void handleLine(String line) {
     pc.valid = true;
     pc.at = now;
   } else if (line.startsWith("SET:")) {
+    if (demo.on) std::swap(settings, demo.set);
     handleSet(line.substring(4));
+    if (demo.on) std::swap(settings, demo.set);
   } else if (line.startsWith("URL:")) {
     strlcpy(configUrl, line.substring(4).c_str(), sizeof(configUrl));
     settingsDirty = true;
@@ -278,6 +398,10 @@ static void handleTouch(uint32_t now) {
   }
   if (!t && down) {  // release = tap
     down = false;
+    if (demo.on) {
+      demoStop();
+      return;
+    }
     if (dragging) {
       dragging = false;
       saveSettingsSoon();
@@ -354,7 +478,9 @@ void loop() {
     saveAt = 0;
   }
 
+  demoTick(now);
   if (screen == Screen::Settings) {
+    if (demo.on) settingsSince = now;
     if (now - settingsSince > 60000) screen = Screen::Main;  // back to the cat after a minute
     else {
       if (settingsDirty || shotPending || now - lastSettingsDraw > (focus.active ? 1000UL : 5000UL)) {
@@ -391,9 +517,14 @@ void loop() {
     focus.active = false;
     catLevel++;
     saveLevel();
-    levelUpUntil = now + 8000;
+    levelUp.start(now, catLevel - 1, catLevel);
+    levelUpReal = true;
     cat.celebrate(now);
     Serial.printf("EVT:focus=done|level=%d\n", catLevel);
+  }
+  if (levelUp.justEnded(now) && levelUpReal) {  // after the big animation, the "grew to" box
+    levelUpUntil = now + 6000;
+    cat.celebrate(now);
   }
 
   fx.set(weather.valid ? skyFor(weather.code) : Sky::Clear, weather.valid ? weather.day : true);
@@ -401,7 +532,15 @@ void loop() {
   cat.update(now, dt, settings.sleepMin, lastPcMsg);
   view.t = now;
   uint32_t t0 = micros();
-  rnd.frame([&](Frame& f) { drawMain(f, fx, cat, view); }, shotPending);
+  if (levelUp.active(now)) {
+    const CatImg* const* L = CAT_TABLE[settings.style % 2][settings.coat % COAT_COUNT];
+    rnd.frame([&](Frame& f) { levelUp.draw(f, now, L, settings.name); }, shotPending);
+  } else {
+    rnd.frame([&](Frame& f) {
+      drawMain(f, fx, cat, view);
+      if (demo.on) drawCaption(f, STEPS[demo.step].caption, now);
+    }, shotPending);
+  }
   if (!shotPending) frameMs = frameMs * 0.9f + (micros() - t0) / 1000.0f * 0.1f;
   shotPending = false;
 }

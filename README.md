@@ -7,7 +7,8 @@ Fork of [vostoklabs/bongo_cat_monitor](https://github.com/vostoklabs/bongo_cat_m
 - **Game Boy Color style UI**: pixel font (Press Start 2P), Pokémon-style text boxes with a blinking ▼, HP-bar PC stats, and a name plate with **Tamagotchi mood hearts** that fill while you type.
 - **Pixel weather in the background**: dithered sky bands, sun, moon and stars, block clouds, rain, snow, fog and lightning, from the real weather (Open-Meteo, no API key).
 - **Header** with temperature, time and a ⚙ gear. Below it a **card that cycles** between weather and PC stats (CPU, GPU, RAM with temps, typing speed). Tap the card to switch it.
-- **Focus timer + levels**: start a 15/25/45/60-minute focus session from the phone page or the ⚙ OPTIONS screen. A timer card with an EXP bar counts down, and finishing it levels the cat up ("MOCHI GREW TO LEVEL 4!"). The level lives on the board and shows on the name plate. Mood hearts fill while you type and drain slowly when you don't.
+- **Focus timer + levels**: start a 15/25/45/60-minute focus session from the phone page or the ⚙ OPTIONS screen. A timer card with an EXP bar counts down, and finishing it levels the cat up with a full-screen anime **LEVEL UP!** (speed lines, golden aura, shockwave, slamming title, screen shake), then a "MOCHI GREW TO LEVEL 4!" box.
+- **Demo**: Phone page → SCREEN → **PLAY DEMO** runs a 1-minute tour of every screen and animation (all weather, typing, sleeping, focus, level up, every coat, OPTIONS). It doesn't change settings or the level; tap the cat's screen to stop it. The level lives on the board and shows on the name plate. Mood hearts fill while you type and drain slowly when you don't.
 - **⚙ OPTIONS screen**: a QR code for the phone settings page, the focus timer (tap the length to change it), and brightness blocks (tap ◀ ▶ or drag).
 - **Phone settings page** (same Game Boy style), served by the desktop app: name, coat, style, brightness, cards, clock, nap time, weather location and units. Changes show up instantly.
 
@@ -107,10 +108,11 @@ Print (PLA/PETG, 0.2 mm) like the ticker: **Pod Front** face down, **Pod Back** 
 | `SET:` | `SET:style=hd\|coat=calico\|name=Mochi\|bright=200\|cycle=8\|cards=3\|h24=0\|sleep=5` (style `hd`/`8bit`; coats `white black grey orange calico tuxedo siamese cream`) |
 | `URL:` | phone page address for the QR code |
 | `FOCUS:` | `FOCUS:25` starts a 25-minute session, `FOCUS:0` stops it |
+| `DEMO` | tour of every screen (`DEMO:0` stops it); `LEVELUP` previews the level-up animation |
 | typing | `SPEED:<ms>`, `STOP`, `IDLE_START`, `STREAK_ON`, `STREAK_OFF` |
 | testing | `PING`, `DBG`, `SHOT` (raw screenshot), `UI:settings` |
 
-The board sends `HELLO:bongo2` at boot, `EVT:level=<n>` (at boot and after each `SET:`), `EVT:bright=<n>` when its brightness blocks change, and `EVT:focus=start|min=25|left=1500`, `EVT:focus=stop`, `EVT:focus=done|level=<n>` for focus sessions.
+The board sends `HELLO:bongo2` at boot, `EVT:level=<n>` (at boot and after each `SET:`), `EVT:bright=<n>` when its brightness blocks change, and `EVT:focus=start|min=25|left=1500`, `EVT:focus=stop`, `EVT:focus=done|level=<n>` for focus sessions, and `EVT:demo=start` / `EVT:demo=end`.
 
 ---
 

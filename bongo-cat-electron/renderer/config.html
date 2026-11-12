@@ -139,6 +139,11 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
       </div>
     </div>
     <div class="box">
+      <div class="lbl">DEMO</div>
+      <button class="go" id="demoBtn">&#9654; PLAY DEMO</button>
+      <div class="hint">A 1-MINUTE TOUR OF EVERY SCREEN AND ANIMATION, LEVEL UP INCLUDED. YOUR SETTINGS AND LEVEL DON'T CHANGE. TAP THE CAT'S SCREEN TO STOP.</div>
+    </div>
+    <div class="box">
       <div class="lbl">CLOCK</div>
       <div class="seg" style="grid-template-columns:1fr 1fr" id="timeFormat"><button data-v="12">12H</button><button data-v="24">24H</button></div>
     </div>
@@ -174,7 +179,7 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
 const COATS = [['white', 'WHITE'], ['black', 'BLACK'], ['grey', 'GREY'], ['orange', 'TABBY'],
                ['calico', 'CALICO'], ['tuxedo', 'TUXEDO'], ['siamese', 'SIAMESE'], ['cream', 'CREAM']];
 let S = {};
-let F = { active: false, leftSec: 0, min: 0 }, fAt = 0, level = 1;
+let F = { active: false, leftSec: 0, min: 0 }, fAt = 0, level = 1, demoOn = false;
 const $ = id => document.getElementById(id);
 const img = (style, coat) => style === '8bit' ? 'cats/8bit.png' : `cats/hd_${coat}.png`;
 
@@ -220,6 +225,10 @@ function apply(state) {
   F = st.focus || F;
   fAt = Date.now();
   $('focusStart').disabled = !st.connected;
+  demoOn = !!st.demo;
+  $('demoBtn').disabled = !st.connected;
+  $('demoBtn').textContent = demoOn ? 'STOP DEMO' : '\u25B6 PLAY DEMO';
+  $('demoBtn').className = 'go' + (demoOn ? ' stop' : '');
   render();
 }
 
@@ -294,6 +303,11 @@ for (const t of document.querySelectorAll('[role=tab]')) {
 }
 for (const id of ['style', 'timeFormat', 'tempUnit']) for (const b of $(id).children) b.onclick = () => save({ [id]: b.dataset.v });
 $('focusStart').onclick = () => save({ focus: S.focusMin || 25 });
+$('demoBtn').onclick = async () => {
+  await save({ demo: !demoOn }, true);
+  toast(demoOn ? 'DEMO PLAYING!' : 'DEMO STOPPED');
+  if (demoOn) setTimeout(load, 63000);  // the tour ends by itself after about a minute
+};
 $('focusStop').onclick = () => save({ focus: 0 });
 for (const id of ['cycleSec', 'sleepTimeout', 'focusMin']) for (const b of $(id).children) b.onclick = () => save({ [id]: +b.dataset.v });
 for (const id of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) {

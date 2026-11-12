@@ -16,7 +16,7 @@ uint16_t blend565(uint16_t dst, uint16_t src, uint8_t a) {
 uint16_t lerp565(uint16_t a, uint16_t b, uint8_t t) { return blend565(a, b, t); }
 
 // pixel sizes of the generated fonts (for vertical centring)
-static int fontPx(const uint8_t* f) { return f == PX16 ? 16 : 8; }
+static int fontPx(const uint8_t* f) { return f == PX32 ? 32 : f == PX16 ? 16 : 8; }
 
 void Renderer::begin() {
   for (int i = 0; i < 2; i++) {
@@ -130,7 +130,33 @@ void Frame::blendLine(float x0, float y0, float x1, float y1, uint16_t c, uint8_
 }
 
 // one layer of the cat: run-length rows, drawn at img->scale (dy: breathing bob)
-void Frame::cat(const CatImg* img, int dy) {
+void Frame::catTint(const CatImg* img, int dx, int dy, uint16_t c, uint8_t a) {
+  if (!img) return;
+  int sc = img->scale, top = CAT_Y + img->y + dy;
+  if (!vis(top, img->h * sc)) return;
+  int r0 = max(0, (max(oy, cy0) - top) / sc);
+  int r1 = min((int)img->h, (min(oy + STRIP, cy1) - top + sc - 1) / sc);
+  for (int ry = r0; ry < r1; ry++) {
+    const uint8_t* d = img->data + img->rows[ry];
+    int x = 0;
+    while (x < img->w) {
+      uint8_t n = d[0], idx = d[1];
+      d += 2;
+      if (idx && img->alpha[idx] > 128) {
+        for (int sy = 0; sy < sc; sy++) {
+          int yy = top + ry * sc + sy;
+          if (yy < oy || yy >= oy + STRIP || yy < cy0 || yy >= cy1) continue;
+          uint16_t* p = buf + (yy - oy) * SW;
+          int xs = max(img->x + dx + x * sc, cx0), xe = min(img->x + dx + (x + n) * sc, cx1);
+          for (int xx = xs; xx < xe; xx++) p[xx] = sw(blend565(sw(p[xx]), c, a));
+        }
+      }
+      x += n;
+    }
+  }
+}
+
+void Frame::cat(const CatImg* img, int dy, int dx) {
   if (!img) return;
   int sc = img->scale;
   int top = CAT_Y + img->y + dy;
@@ -150,7 +176,7 @@ void Frame::cat(const CatImg* img, int dy) {
           int yy = top + ry * sc + sy;
           if (yy < oy || yy >= oy + STRIP || yy < cy0 || yy >= cy1) continue;
           uint16_t* p = buf + (yy - oy) * SW;
-          int xs = img->x + x * sc, xe = xs + n * sc;
+          int xs = img->x + dx + x * sc, xe = xs + n * sc;
           xs = max(xs, cx0);
           xe = min(xe, cx1);
           if (a >= 250) {
@@ -249,11 +275,15 @@ void Frame::ditherRect(int x, int y, int w, int h, uint16_t c) {
 
 void Frame::disc(int cx, int cy, int r, uint16_t c) {
   if (!vis(cy - r - 2, 2 * r + 4)) return;
-  for (int y = -r; y < r; y += 2)
-    for (int x = -r; x < r; x += 2) {
-      float dx = x + 1, dy = y + 1;
-      if (dx * dx + dy * dy <= r * r) fill(cx + x, cy + y, 2, 2, c);
-    }
+  // only the 2 px rows that touch this strip; one span per row
+  int y0 = max(-r, ((oy - cy) & ~1) - 2), y1 = min(r, oy + STRIP - cy + 2);
+  for (int y = y0; y < y1; y += 2) {
+    float dy = y + 1;
+    float span = r * r - dy * dy;
+    if (span < 0) continue;
+    int half = ((int)sqrtf(span) + 1) & ~1;
+    fill(cx - half, cy + y, 2 * half, 2, c);
+  }
 }
 
 static uint16_t palKey(char k) {

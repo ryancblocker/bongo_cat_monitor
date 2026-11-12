@@ -44,6 +44,13 @@ void CatAnim::celebrate(uint32_t now) {
   mood = 100;
 }
 
+void CatAnim::force(uint8_t s, uint32_t now, bool yawn) {
+  typingNow = false;
+  progress = false;
+  if (stage != s) setStage(s, now);
+  if (yawn && now >= yawnEnd) yawnEnd = now + 1600;
+}
+
 void CatAnim::update(uint32_t now, float dt, uint8_t sleepMin, uint32_t lastPcMsg) {
   nowMs = now;
   // safety: no typing command for 2 s -> paws stop; PC silent for 5 s -> drift off by ourselves

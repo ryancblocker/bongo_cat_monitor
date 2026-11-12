@@ -31,6 +31,7 @@ let configServer;
 let lastSystemStats = { cpu: 0, memory: 0 };
 let lastTypingStats = { wpm: 0, isActive: false };
 let focusState = { active: false, endsAt: 0, min: 0 };  // mirrored from the board's EVT:focus lines
+let demoRunning = false;  // board's EVT:demo=start / end
 
 // Auto-connect state
 let connecting = false;
@@ -271,6 +272,8 @@ function setupEventForwarding() {
     const fs = /^EVT:focus=start\|min=(\d+)\|left=(\d+)/.exec(data);
     if (fs) focusState = { active: true, endsAt: Date.now() + parseInt(fs[2], 10) * 1000, min: parseInt(fs[1], 10) };
     if (/^EVT:focus=(stop|done)/.test(data)) focusState = { active: false, endsAt: 0, min: 0 };
+    if (/^EVT:demo=start/.test(data)) demoRunning = true;
+    if (/^EVT:demo=end/.test(data) || /^HELLO:/.test(data)) demoRunning = false;
   });
 }
 
@@ -314,12 +317,18 @@ function configState() {
       sensors: ex.hw ? ex.hw.source : 'none',
       platform: process.platform,
       level: settingsManager.get('catLevel', 1),
+      demo: demoRunning,
       focus: { active: focusState.active, leftSec: focusState.active ? Math.max(0, Math.round((focusState.endsAt - Date.now()) / 1000)) : 0, min: focusState.min },
     },
   };
 }
 
 async function applyChanges(changes) {
+  // demo: {demo: true} plays the tour of every screen, {demo: false} stops it
+  if (changes && 'demo' in changes && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
+    await esp32SerialManager.sendCommand(changes.demo ? 'DEMO' : 'DEMO:0');
+    await new Promise(r => setTimeout(r, 150));
+  }
   // focus: {focus: minutes} starts a session on the board, {focus: 0} stops it
   if (changes && 'focus' in changes && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
     const min = Math.max(0, Math.min(180, Math.round(Number(changes.focus) || 0)));

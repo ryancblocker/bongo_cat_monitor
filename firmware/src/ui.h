@@ -27,4 +27,5 @@ struct MainView {
 void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v);
 void drawSettings(Frame& f, uint32_t t);
 void drawMessage(Frame& f, const char* title, const char* sub);
+void drawCaption(Frame& f, const char* text, uint32_t t);  // demo step label at the bottom
 void timeString(char* out, size_t n);

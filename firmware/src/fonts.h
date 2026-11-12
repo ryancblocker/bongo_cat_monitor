@@ -5,3 +5,4 @@
 
 extern const uint8_t PX8[];  // PressStart2P-Regular 8px
 extern const uint8_t PX16[];  // PressStart2P-Regular 16px
+extern const uint8_t PX32[];  // PressStart2P-Regular 32px
