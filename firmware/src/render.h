@@ -34,7 +34,15 @@ class Frame {
   void blendCircle(float cx, float cy, float r, uint16_t c, uint8_t a);
   void blendLine(float x0, float y0, float x1, float y1, uint16_t c, uint8_t a);
   void blendAll(uint16_t c, uint8_t a);  // whole strip (lightning flash)
-  void cat(const CatImg* img);
+  void cat(const CatImg* img, int dy = 0);
+
+  // pixel-art helpers (no anti-aliasing)
+  void fill(int x, int y, int w, int h, uint16_t c);
+  void disc(int cx, int cy, int r, uint16_t c);  // filled circle on the 2 px grid
+  void ditherRect(int x, int y, int w, int h, uint16_t c);  // 50% checkerboard of 2 px cells
+  // char-map sprite: each char is a palette key ('.' = transparent), drawn at `scale`
+  void bitmap(const char* const* rows, int w, int h, int x, int y, int scale);
+  void skyBands(const uint16_t* a, const uint16_t* b);  // per-row colours, b != a = dithered row
 
   // LovyanGFX drawing (RGB888 colours), offset into the strip
   void text(const char* s, int x, int cy, const uint8_t* font, uint32_t color, Align al = AL_L, int maxw = 0);

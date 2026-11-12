@@ -38,7 +38,7 @@ static uint32_t saveAt = 0, cardSince = 0, settingsSince = 0;
 static float frameMs = 0;  // smoothed render time
 
 // ------------------------------------------------------------------ settings in NVS
-static const uint32_t SETTINGS_VER = 2;
+static const uint32_t SETTINGS_VER = 3;  // 3: HD pixel cat + 8 coats
 
 static void loadSettings() {
   Preferences p;
@@ -91,9 +91,8 @@ static int indexOf(const String& v, const char* const* names, int n, int def) {
 
 static void handleSet(const String& s) {
   String v;
-  if ((v = field(s, "style")).length()) settings.style = indexOf(v, STYLE_NAMES, 3, settings.style);
-  if ((v = field(s, "cat")).length()) settings.cat = indexOf(v, CAT_NAMES, 3, settings.cat);
-  if ((v = field(s, "coat")).length()) settings.coat = indexOf(v, COAT_NAMES, 3, settings.coat);
+  if ((v = field(s, "style")).length()) settings.style = indexOf(v, STYLE_NAMES, 2, settings.style);
+  if ((v = field(s, "coat")).length()) settings.coat = indexOf(v, COAT_NAMES, COAT_COUNT, settings.coat);
   if (s.indexOf("name=") >= 0) {
     v = field(s, "name");
     v.trim();
@@ -203,7 +202,7 @@ static void setupTouch() {
     p.getBytes("calp", cal, sizeof(cal));
     lcd.setTouchCalibrate(cal);
   } else {
-    rnd.frame([](Frame& f) { drawMessage(f, "Touch calibration", "Tap each arrow as it appears"); });
+    rnd.frame([](Frame& f) { drawMessage(f, "TOUCH SETUP", "TAP EACH ARROW"); });
     delay(2500);
     lcd.fillScreen(0x000000u);
     lcd.calibrateTouch(cal, 0xFFFFFFu, 0x000000u, 24);
@@ -218,6 +217,15 @@ static void startSlide(int to) {
   view.slide = 0;
 }
 
+static void setBright(int b) {
+  b = constrain(b, 10, 255);
+  if (b != settings.bright) {
+    settings.bright = b;
+    applyBrightness();
+    settingsDirty = true;
+  }
+}
+
 static void handleTouch(uint32_t now) {
   static bool down = false, dragging = false;
   static int32_t sx = 0, sy = 0;
@@ -226,16 +234,10 @@ static void handleTouch(uint32_t now) {
   if (t && !down) {  // press
     down = true;
     sx = x, sy = y;
-    dragging = screen == Screen::Settings && y > SLIDER_Y - 26;
+    dragging = screen == Screen::Settings && y > BR_Y - 6 && x >= BR_BAR_X - 4 && x < BR_BAR_X + BR_BAR_W + 4;
   }
-  if (t && dragging) {  // drag the brightness slider
-    int b = 10 + (int)((x - SLIDER_X0) * 245.0f / (SLIDER_X1 - SLIDER_X0));
-    b = constrain(b, 10, 255);
-    if (b != settings.bright) {
-      settings.bright = b;
-      applyBrightness();
-      settingsDirty = true;
-    }
+  if (t && dragging) {  // drag across the brightness blocks
+    setBright(10 + (int)((x - BR_BAR_X) * 245.0f / BR_BAR_W));
     settingsSince = now;
   }
   if (!t && down) {  // release = tap
@@ -244,23 +246,30 @@ static void handleTouch(uint32_t now) {
       dragging = false;
       saveSettingsSoon();
       Serial.printf("EVT:bright=%d\n", settings.bright);
-      settingsDirty = true;
       return;
     }
     if (screen == Screen::Main) {
-      if (sx > GEAR_X - 26 && sy < HEADER_H + 8) {
+      if (sx > GEAR_X - 14 && sy < HEADER_H + 10) {
         screen = Screen::Settings;
         settingsDirty = true;
         settingsSince = now;
-      } else if (sy >= CARD_Y && sy < CARD_Y + CARD_H + 10) {
+      } else if (sy >= CARD_Y && sy < CARD_Y + CARD_H) {
         int ids[2], n = enabledCards(ids);
         if (n > 1) startSlide(view.card == ids[0] ? ids[1] : ids[0]);
         cardSince = now;
-      } else if (sy > CAT_Y + 20) {
+      } else if (sy > CAT_Y + 30) {
         cat.poke(now);
       }
-    } else if (sx > 190 && sy < 50) {
-      screen = Screen::Main;
+    } else {
+      settingsSince = now;
+      if (sx > 150 && sy < 40) {
+        screen = Screen::Main;
+      } else if (sy > BR_Y - 6) {  // ◀ / ▶ step one block
+        if (sx < BR_BAR_X) setBright(settings.bright - 25);
+        else if (sx >= BR_BAR_X + BR_BAR_W) setBright(settings.bright + 25);
+        saveSettingsSoon();
+        Serial.printf("EVT:bright=%d\n", settings.bright);
+      }
     }
   }
 }
@@ -295,9 +304,7 @@ void loop() {
     if (now - settingsSince > 60000) screen = Screen::Main;  // back to the cat after a minute
     else {
       if (settingsDirty || shotPending || now - lastSettingsDraw > 5000) {
-        int32_t tx, ty;
-        bool active = lcd.getTouch(&tx, &ty);
-        rnd.frame([&](Frame& f) { drawSettings(f, active); }, shotPending);
+        rnd.frame([&](Frame& f) { drawSettings(f, now); }, shotPending);
         settingsDirty = shotPending = false;
         lastSettingsDraw = now;
       }
@@ -328,7 +335,8 @@ void loop() {
 
   fx.set(weather.valid ? skyFor(weather.code) : Sky::Clear, weather.valid ? weather.day : true);
   fx.update(dt);
-  cat.update(now, settings.sleepMin, lastPcMsg);
+  cat.update(now, dt, settings.sleepMin, lastPcMsg);
+  view.t = now;
   uint32_t t0 = micros();
   rnd.frame([&](Frame& f) { drawMain(f, fx, cat, view); }, shotPending);
   if (!shotPending) frameMs = frameMs * 0.9f + (micros() - t0) / 1000.0f * 0.1f;

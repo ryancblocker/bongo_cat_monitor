@@ -295,7 +295,7 @@ async function sendExtras() {
 function configState() {
   const s = settingsManager.getAllSettings();
   const pick = {};
-  for (const k of ['style', 'catKind', 'coat', 'catName', 'brightness', 'cycleSec', 'showWeatherCard', 'showPcCard',
+  for (const k of ['style', 'coat', 'catName', 'brightness', 'cycleSec', 'showWeatherCard', 'showPcCard',
     'timeFormat', 'sleepTimeout', 'weatherLocation', 'placeName', 'tempUnit', 'showCpuTemp', 'showGpu', 'startAtLogin']) pick[k] = s[k];
   const ex = extrasMonitor ? extrasMonitor.getStatus() : {};
   return {

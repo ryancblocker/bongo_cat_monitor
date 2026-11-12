@@ -3,9 +3,8 @@
 #include <Arduino.h>
 
 struct Settings {          // persisted in NVS ("bongo")
-  uint8_t style = 0;       // CatStyle: 0 cartoon, 1 pixel, 2 8bit
-  uint8_t cat = 0;         // CatKind: classic, chonky, kitten
-  uint8_t coat = 2;        // CatCoat: default, grey, tabby
+  uint8_t style = 0;       // CatStyle: 0 hd (HD pixel), 1 8bit (the original sprites)
+  uint8_t coat = 0;        // CatCoat: white, black, grey, orange, calico, tuxedo, siamese, cream
   char name[17] = "";      // shown on a tag above the cat ("" = hidden)
   uint8_t bright = 200;    // backlight 10..255
   uint8_t cycle = 8;       // seconds per card (3..60)

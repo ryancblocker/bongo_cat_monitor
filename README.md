@@ -2,22 +2,23 @@
 
 Fork of [vostoklabs/bongo_cat_monitor](https://github.com/vostoklabs/bongo_cat_monitor), rebuilt for a 2.8" **ESP32-32E (USB-C only) Cheap Yellow Display** standing in a portrait stand.
 
-- **Choose your cat**: Classic, Chonky or Kitten, in Default (white), Grey or Tabby, drawn as smooth **cartoon** or detailed **pixel** art, or the **original 8-bit** cat. Give it a name and it wears a little name tag.
-- **Weather in the background**: sun, moon and stars, drifting clouds, rain, snow, fog and lightning, matching the real weather (Open-Meteo, no API key).
-- **Header** with temperature, time and a ⚙ gear. Below it a **card that cycles** between weather (temp, conditions, high/low, wind, humidity) and PC stats (CPU, GPU, RAM with temps, typing speed). Tap the card to switch it.
-- **⚙ Settings on the screen**: a QR code for the phone settings page, plus a brightness slider.
-- **Phone settings page**, served by the desktop app: cat, coat, style, name, brightness, cards, clock, nap time, weather location and units. Changes show up instantly.
-- The cat types along with you, gets a happy face when you type fast, and dozes off when you stop. Tap it and it waves.
+- **The original bongo cat in HD pixel art**: the classic sprites upscaled (Scale2x) and redrawn at twice the detail, with shading, eye shine, blush, inner ears and a wooden desk. **8 coats**: white, black, grey, orange tabby, calico, tuxedo, Siamese, cream. Or the **original 8-bit** cat.
+- **Livelier**: it breathes, blinks, twitches an ear, glances around, bounces while you type, yawns before a nap, and shows hearts when you tap it.
+- **Game Boy Color style UI**: pixel font (Press Start 2P), Pokémon-style text boxes with a blinking ▼, HP-bar PC stats, and a name plate with **Tamagotchi mood hearts** that fill while you type.
+- **Pixel weather in the background**: dithered sky bands, sun, moon and stars, block clouds, rain, snow, fog and lightning, from the real weather (Open-Meteo, no API key).
+- **Header** with temperature, time and a ⚙ gear. Below it a **card that cycles** between weather and PC stats (CPU, GPU, RAM with temps, typing speed). Tap the card to switch it.
+- **⚙ OPTIONS screen**: a QR code for the phone settings page, plus brightness blocks (tap ◀ ▶ or drag).
+- **Phone settings page** (same Game Boy style), served by the desktop app: name, coat, style, brightness, cards, clock, nap time, weather location and units. Changes show up instantly.
 
 ```
 firmware/                  PlatformIO project (LovyanGFX), the screen
-  src/cat_assets.cpp       generated cat art (tools/make_cats.py --export)
+  src/cat_assets.cpp       generated cat art (tools/pixelcat.py --export)
 bongo-cat-electron/        desktop app (Windows + Mac): stats, typing, weather, phone page
   renderer/config.html     the phone settings page
   renderer/cats/           cat previews for the page
 case/RossBongoStand/       Fusion script for the portrait stand (STLs in case/stl/)
 tools/
-  make_cats.py             draws every cat (previews in tools/out/, --export for firmware + app)
+  pixelcat.py              HD pixel cat + coats from the original sprites (--export for firmware + app)
   bongo.py                 test the board without the app: sample data, settings, screenshots
 ```
 
@@ -43,11 +44,11 @@ python3 -m venv .venv && .venv/bin/pip install pillow freetype-py pyserial
 .venv/bin/python tools/bongo.py demo --code 61 --night --typing 3 --shot rain.png
 ```
 
-That sends sample weather (WMO code 61 = rain, at night) and PC stats, makes the cat type for 3 seconds, and saves a screenshot of the real screen. `send "SET:coat=grey|name=Mochi"` changes settings, and `dbg` prints the cat's state and the frame time.
+That sends sample weather (WMO code 61 = rain, at night) and PC stats, makes the cat type for 3 seconds, and saves a screenshot of the real screen. `send "SET:coat=calico|name=Mochi"` changes settings, and `dbg` prints the cat's state and the frame time.
 
 ### Changing the cats
 
-`tools/make_cats.py` draws every cat from shapes (no image files), so proportions, colours and poses are all constants at the top. Run it with `--export` to regenerate `firmware/src/cat_assets.cpp` and the app previews, then reflash.
+`tools/pixelcat.py` builds the HD cat from the original sprites in `animations/`: Scale2x, a 1 px outline, shading, then the coat colours and patterns (all in the `COAT` table at the top). Previews land in `tools/out/`. Run it with `--export` to regenerate `firmware/src/cat_assets.cpp` and the phone page's coat previews, then reflash.
 
 ## 2. Ross's PC (Windows)
 
@@ -102,7 +103,7 @@ Print (PLA/PETG, 0.2 mm) like the ticker: **Pod Front** face down, **Pod Back** 
 | `DATE:` | `DATE:Thu, Nov 12` |
 | `WX2:` | `WX2:code=3\|day=1\|t=54\|hi=60\|lo=41\|wind=8\|wu=mph\|hum=40\|u=F\|place=Highlands Ranch` (`WX2:` alone = no weather) |
 | `PC:` | `PC:cpu=23\|ram=41\|wpm=82\|cput=136\|gpu=63\|gput=160\|u=F` (`-1` = unknown) |
-| `SET:` | `SET:style=cartoon\|cat=chonky\|coat=grey\|name=Mochi\|bright=200\|cycle=8\|cards=3\|h24=0\|sleep=5` |
+| `SET:` | `SET:style=hd\|coat=calico\|name=Mochi\|bright=200\|cycle=8\|cards=3\|h24=0\|sleep=5` (style `hd`/`8bit`; coats `white black grey orange calico tuxedo siamese cream`) |
 | `URL:` | phone page address for the QR code |
 | typing | `SPEED:<ms>`, `STOP`, `IDLE_START`, `STREAK_ON`, `STREAK_OFF` |
 | testing | `PING`, `DBG`, `SHOT` (raw screenshot), `UI:settings` |

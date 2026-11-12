@@ -16,15 +16,7 @@ uint16_t blend565(uint16_t dst, uint16_t src, uint8_t a) {
 uint16_t lerp565(uint16_t a, uint16_t b, uint8_t t) { return blend565(a, b, t); }
 
 // pixel sizes of the generated fonts (for vertical centring)
-static int fontPx(const uint8_t* f) {
-  if (f == INTER_11) return 11;
-  if (f == INTER_13) return 13;
-  if (f == INTER_15B) return 15;
-  if (f == INTER_17B) return 17;
-  if (f == INTER_22B) return 22;
-  if (f == INTER_40B) return 40;
-  return 13;
-}
+static int fontPx(const uint8_t* f) { return f == PX16 ? 16 : 8; }
 
 void Renderer::begin() {
   for (int i = 0; i < 2; i++) {
@@ -137,11 +129,11 @@ void Frame::blendLine(float x0, float y0, float x1, float y1, uint16_t c, uint8_
   }
 }
 
-// one layer of the cat: run-length rows, drawn at img->scale
-void Frame::cat(const CatImg* img) {
+// one layer of the cat: run-length rows, drawn at img->scale (dy: breathing bob)
+void Frame::cat(const CatImg* img, int dy) {
   if (!img) return;
   int sc = img->scale;
-  int top = CAT_Y + img->y;
+  int top = CAT_Y + img->y + dy;
   if (!vis(top, img->h * sc)) return;
   int r0 = max(0, (max(oy, cy0) - top) / sc);
   int r1 = min((int)img->h, (min(oy + STRIP, cy1) - top + sc - 1) / sc);
@@ -205,7 +197,7 @@ void Frame::text(const char* s, int x, int cy, const uint8_t* f, uint32_t color,
   spr->setTextColor(color);
   spr->setTextDatum(al == AL_L ? textdatum_t::baseline_left
                                : (al == AL_C ? textdatum_t::baseline_center : textdatum_t::baseline_right));
-  int baseline = cy + (int)lroundf(px_ * 0.36f);  // Inter cap height ~0.73 em
+  int baseline = cy + px_ / 2;  // Press Start 2P: glyphs fill ~7/8 of the em above the baseline
   spr->drawString(str, x, baseline - oy);
 }
 
@@ -231,4 +223,78 @@ void Frame::arc(int cx, int cy, int r0, int r1, float a0, float a1, uint32_t c) 
 }
 void Frame::qr(const char* txt, int x, int y, int w) {
   if (vis(y, w)) spr->qrcode(txt, x, y - oy, w, 3);
+}
+
+// ------------------------------------------------------------- pixel-art helpers
+void Frame::fill(int x, int y, int w, int h, uint16_t c) {
+  int y0 = max(max(y, oy), cy0), y1 = min(min(y + h, oy + STRIP), cy1);
+  int x0 = max(x, cx0), x1 = min(x + w, cx1);
+  uint16_t v = sw(c);
+  for (int yy = y0; yy < y1; yy++) {
+    uint16_t* p = buf + (yy - oy) * SW;
+    for (int xx = x0; xx < x1; xx++) p[xx] = v;
+  }
+}
+
+void Frame::ditherRect(int x, int y, int w, int h, uint16_t c) {
+  int y0 = max(max(y, oy), cy0), y1 = min(min(y + h, oy + STRIP), cy1);
+  int x0 = max(x, cx0), x1 = min(x + w, cx1);
+  uint16_t v = sw(c);
+  for (int yy = y0; yy < y1; yy++) {
+    uint16_t* p = buf + (yy - oy) * SW;
+    for (int xx = x0; xx < x1; xx++)
+      if (((xx >> 1) + (yy >> 1)) & 1) p[xx] = v;
+  }
+}
+
+void Frame::disc(int cx, int cy, int r, uint16_t c) {
+  if (!vis(cy - r - 2, 2 * r + 4)) return;
+  for (int y = -r; y < r; y += 2)
+    for (int x = -r; x < r; x += 2) {
+      float dx = x + 1, dy = y + 1;
+      if (dx * dx + dy * dy <= r * r) fill(cx + x, cy + y, 2, 2, c);
+    }
+}
+
+static uint16_t palKey(char k) {
+  switch (k) {
+    case 'k': return c565(0x202838);  // ink
+    case 'w': return c565(0xF8F8F0);  // paper / white
+    case 'g': return c565(0xC8D0DC);  // light grey
+    case 'G': return c565(0x8890A0);  // grey
+    case 'D': return c565(0x586070);  // dark grey
+    case 'y': return c565(0xF8D040);  // yellow
+    case 'o': return c565(0xF09830);  // orange
+    case 'b': return c565(0x58A0F0);  // blue
+    case 'B': return c565(0x3060B8);  // dark blue
+    case 'c': return c565(0xF0E8C0);  // moon cream
+    case 'r': return c565(0xE84858);  // red
+    case 'n': return c565(0x40C850);  // green
+  }
+  return 0;
+}
+
+void Frame::bitmap(const char* const* rows, int w, int h, int x, int y, int scale) {
+  if (!vis(y, h * scale)) return;
+  for (int r = 0; r < h; r++) {
+    int yy = y + r * scale;
+    if (yy + scale <= oy || yy >= oy + STRIP) continue;
+    for (int c = 0; c < w; c++) {
+      char k = rows[r][c];
+      if (k != '.' && k != ' ' && k) fill(x + c * scale, yy, scale, scale, palKey(k));
+    }
+  }
+}
+
+void Frame::skyBands(const uint16_t* a, const uint16_t* b) {
+  for (int r = 0; r < STRIP; r++) {
+    int y = oy + r;
+    uint16_t va = sw(a[y]), vb = sw(b[y]);
+    uint16_t* p = buf + r * SW;
+    if (va == vb) {
+      for (int x = 0; x < SW; x++) p[x] = va;
+    } else {
+      for (int x = 0; x < SW; x++) p[x] = (((x >> 1) + (y >> 1)) & 1) ? vb : va;
+    }
+  }
 }

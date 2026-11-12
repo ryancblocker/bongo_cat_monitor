@@ -3,170 +3,166 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b0b0d">
+<meta name="theme-color" content="#283050">
 <title>Bongo Cat</title>
 <style>
-:root{--bg:#0b0b0d;--card:#18181b;--line:#2c2c31;--text:#f5f5f7;--sub:#a1a1aa;--acc:#ff9f43;--ok:#30d158;--bad:#ff453a}
+@font-face{font-family:"PressStart";src:url("fonts/PressStart2P-Regular.ttf") format("truetype");font-display:swap}
+:root{--bg:#283050;--bg2:#2c3658;--ink:#202838;--paper:#f8f8f0;--rim:#98b0d0;--sub:#687088;--gold:#f8c038;--red:#e84858;--green:#40c850}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);padding-bottom:40px}
-main{max-width:520px;margin:auto;padding:20px 16px 0}
-h1{margin:0;font-size:28px;line-height:34px;font-weight:800;letter-spacing:-.02em}
-.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.pill{font-size:12px;font-weight:600;padding:5px 10px;border-radius:99px;background:var(--card);color:var(--sub);white-space:nowrap}
-.pill i{display:inline-block;width:7px;height:7px;border-radius:4px;margin-right:6px;background:var(--bad);vertical-align:1px}
-.pill.on i{background:var(--ok)}
-.lede{margin:2px 0 0;font-size:13px;color:var(--sub)}
-.preview{position:relative;margin-top:16px;border-radius:18px;overflow:hidden;background:#d6e8f8;aspect-ratio:240/200}
-.preview img{display:block;width:100%;height:100%;image-rendering:auto}
-.preview img.px{image-rendering:pixelated}
-.tag{position:absolute;left:3.3%;top:2%;padding:2px 10px;border-radius:99px;background:rgba(16,20,28,.5);color:#fff;font-size:13px;font-weight:600}
-.tag:empty{display:none}
-.tabs{margin-top:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;border-radius:12px;background:var(--card)}
-.tabs button{height:36px;border:0;border-radius:9px;font:inherit;font-size:14px;font-weight:600;color:var(--sub);background:transparent;cursor:pointer}
-.tabs button[aria-selected=true]{color:#0b0b0d;background:var(--text)}
+body{margin:0;font:10px/1.8 "PressStart",ui-monospace,monospace;color:var(--ink);padding-bottom:40px;
+  background-color:var(--bg);background-image:conic-gradient(var(--bg2) 25%,transparent 0 50%,var(--bg2) 0 75%,transparent 0);background-size:4px 4px;
+  -webkit-font-smoothing:none;image-rendering:pixelated}
+main{max-width:480px;margin:auto;padding:16px 12px 0}
+button,input{font:inherit;color:inherit}
+/* Pokemon text box: ink frame, light rim, paper */
+.box{background:var(--paper);border:4px solid var(--ink);box-shadow:inset 0 0 0 3px var(--rim);border-radius:6px;padding:14px 14px}
+.box+.box,.mt{margin-top:12px}
+h1{margin:0;font-size:16px;line-height:24px;font-weight:400;letter-spacing:1px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.st{font-size:8px;display:flex;align-items:center;gap:6px;color:var(--sub)}
+.st i{width:8px;height:8px;background:var(--red);display:inline-block}
+.st.on i{background:var(--green)}
+.screen{margin-top:12px;padding:6px;background:var(--ink);border-radius:6px}
+.screen .in{position:relative;background:#b0d8f8;aspect-ratio:256/200;overflow:hidden}
+.screen img{display:block;width:100%;height:100%;image-rendering:pixelated}
+.plate{position:absolute;left:3%;top:4%;background:var(--paper);border:3px solid var(--ink);box-shadow:inset 0 0 0 2px var(--rim);border-radius:4px;padding:6px 8px 4px;font-size:8px;line-height:12px;text-transform:uppercase}
+.plate:empty{display:none}
+.plate b{font-weight:400;display:block}.plate span{color:var(--red)}
+.menu{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.menu button{background:none;border:0;padding:8px 2px 8px 14px;text-align:left;cursor:pointer;position:relative;font-size:9px}
+.menu button[aria-selected=true]::before{content:"\25B6";position:absolute;left:0;top:8px;animation:blink 0.9s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
 .panel[hidden]{display:none}
-.h{margin:22px 4px 8px;font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--sub)}
-.box{border-radius:16px;background:var(--card);overflow:hidden}
-.pad{padding:14px 16px}
-.row{min-height:60px;padding:8px 16px;display:flex;align-items:center;gap:12px;border-top:1px solid var(--line)}
-.row:first-child{border-top:0}
-.row .t{flex:1;min-width:0}.row .t b{display:block;font-size:15px;font-weight:600}.row .t span{font-size:12px;color:var(--sub)}
-.sw{width:51px;height:31px;flex:none;position:relative;border:0;padding:0;border-radius:16px;cursor:pointer;background:#3f3f46;transition:background .2s}
-.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:14px;background:#fff;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
-.sw[aria-pressed=true]{background:var(--acc)}.sw[aria-pressed=true]::after{transform:translateX(20px)}
-.seg{display:grid;gap:4px;padding:4px;border-radius:10px;background:var(--bg)}
-.seg button{height:36px;border:0;border-radius:8px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;color:var(--sub);background:transparent}
-.seg button[aria-pressed=true]{color:#0b0b0d;background:var(--text)}
-.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.tile{font:inherit;padding:6px 6px 8px;border-radius:14px;border:2px solid transparent;background:var(--bg);color:var(--text);cursor:pointer;text-align:center;font-size:13px;font-weight:600}
-.tile img{display:block;width:100%;aspect-ratio:240/200;border-radius:9px;margin-bottom:6px;background:#d6e8f8}
-.tile[aria-pressed=true]{border-color:var(--acc)}
-.tile:disabled{opacity:.35;cursor:default}
-.lbl{display:flex;justify-content:space-between;font-size:15px;font-weight:600}.lbl span{color:var(--sub);font-weight:500;font-variant-numeric:tabular-nums}
-.hint{font-size:12px;color:var(--sub);margin-top:6px}
-input[type=range]{width:100%;margin-top:10px;accent-color:var(--acc)}
-input[type=text]{font:inherit;font-size:16px;width:100%;height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
-label.s{display:block;font-size:12px;color:var(--sub);margin-bottom:6px}
-.gap{height:14px}
-#toast{position:fixed;left:50%;top:16px;transform:translate(-50%,-90px);background:#27272a;border:1px solid var(--line);padding:10px 16px;border-radius:12px;transition:transform .3s;z-index:9;font-weight:600}
+.lbl{font-size:10px;margin:0 0 10px;display:flex;justify-content:space-between;gap:8px}
+.lbl span{color:var(--sub)}
+.hint{font-size:8px;line-height:14px;color:var(--sub);margin-top:8px}
+input[type=text]{width:100%;height:40px;padding:0 10px;border:3px solid var(--ink);border-radius:4px;background:#fff;font-size:12px;text-transform:uppercase;outline:none}
+input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
+.seg{display:grid;gap:8px}
+.seg button,.tile,.sw{border:3px solid var(--ink);border-radius:4px;background:#fff;cursor:pointer}
+.seg button{height:40px;font-size:10px}
+.seg button[aria-pressed=true],.tile[aria-pressed=true]{background:var(--gold)}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.tile{padding:4px 4px 6px;font-size:7px;line-height:10px;text-align:center}
+.tile img{display:block;width:100%;aspect-ratio:256/200;image-rendering:pixelated;margin-bottom:4px;border:2px solid var(--ink)}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:3px dotted var(--rim)}
+.row:first-child{border-top:0;padding-top:0}
+.row .t{flex:1;min-width:0;font-size:10px}.row .t span{display:block;font-size:8px;line-height:14px;color:var(--sub)}
+.sw{width:64px;height:34px;flex:none;font-size:9px;background:#d8dee8}
+.sw[aria-pressed=true]{background:var(--green);color:#fff}
+.bar{display:flex;align-items:center;gap:8px}
+.bar button{width:36px;height:36px;border:3px solid var(--ink);border-radius:4px;background:#fff;cursor:pointer;font-size:10px;flex:none}
+.blocks{flex:1;display:grid;gap:3px;cursor:pointer;touch-action:none}
+.blocks i{display:block;height:20px;border:3px solid var(--ink);background:#c8d0dc}
+.blocks i.on{background:var(--gold)}
+#toast{position:fixed;left:50%;bottom:16px;transform:translate(-50%,120px);transition:transform .2s steps(4);z-index:9;font-size:10px;padding:10px 14px;white-space:nowrap}
 #toast.show{transform:translate(-50%,0)}
-.err{color:#ffb4b0}
+.err{color:var(--red)}
 </style>
 </head>
 <body>
 <main>
-  <div class="top">
-    <h1>Bongo Cat</h1>
-    <span class="pill" id="conn"><i></i><span>Connecting…</span></span>
-  </div>
-  <p class="lede">Changes show up on the cat's screen right away.</p>
-
-  <div class="preview" aria-label="Preview of your cat">
-    <img id="pv" alt="">
-    <div class="tag" id="pvTag"></div>
+  <div class="box top">
+    <h1>BONGO CAT</h1>
+    <span class="st" id="conn"><i></i><span>...</span></span>
   </div>
 
-  <div class="tabs" role="tablist" aria-label="Settings sections">
-    <button role="tab" id="tab-cat" aria-controls="p-cat" aria-selected="true">Cat</button>
-    <button role="tab" id="tab-display" aria-controls="p-display" aria-selected="false">Display</button>
-    <button role="tab" id="tab-more" aria-controls="p-more" aria-selected="false">Weather &amp; PC</button>
+  <div class="screen" aria-label="Preview of your cat">
+    <div class="in"><img id="pv" alt=""><div class="plate" id="plate"></div></div>
+  </div>
+
+  <div class="box mt menu" role="tablist" aria-label="Settings sections">
+    <button role="tab" id="tab-cat" aria-controls="p-cat" aria-selected="true">CAT</button>
+    <button role="tab" id="tab-display" aria-controls="p-display" aria-selected="false">SCREEN</button>
+    <button role="tab" id="tab-more" aria-controls="p-more" aria-selected="false">WEATHER</button>
   </div>
 
   <!-- ================= CAT ================= -->
   <section class="panel" id="p-cat" role="tabpanel" aria-labelledby="tab-cat">
-    <div class="h">NAME</div>
-    <div class="box pad">
-      <input type="text" id="catName" maxlength="16" placeholder="Mochi" autocomplete="off" aria-label="Cat's name">
-      <div class="hint">Shown on a little tag above the cat. Leave empty to hide it.</div>
+    <div class="box mt">
+      <div class="lbl"><label for="catName">NAME</label></div>
+      <input type="text" id="catName" maxlength="16" placeholder="MOCHI" autocomplete="off" autocapitalize="characters">
+      <div class="hint">SHOWN ON A NAME PLATE WITH ITS MOOD HEARTS. LEAVE EMPTY TO HIDE.</div>
     </div>
-
-    <div class="h">STYLE</div>
-    <div class="box pad">
-      <div class="seg" style="grid-template-columns:repeat(3,1fr)" id="style">
-        <button data-v="cartoon">Cartoon</button><button data-v="pixel">Pixel</button><button data-v="8bit">8-bit</button>
+    <div class="box">
+      <div class="lbl">COAT</div>
+      <div class="tiles" id="coat"></div>
+    </div>
+    <div class="box">
+      <div class="lbl">STYLE</div>
+      <div class="seg" style="grid-template-columns:1fr 1fr" id="style">
+        <button data-v="hd">HD PIXEL</button><button data-v="8bit">8-BIT</button>
       </div>
-      <div class="hint" id="styleHint"></div>
+      <div class="hint">8-BIT IS THE ORIGINAL CAT. COATS ARE FOR HD PIXEL.</div>
     </div>
-
-    <div class="h">CAT</div>
-    <div class="box pad"><div class="tiles" id="catKind"></div></div>
-
-    <div class="h">COAT</div>
-    <div class="box pad"><div class="tiles" id="coat"></div></div>
   </section>
 
-  <!-- ================= DISPLAY ================= -->
+  <!-- ================= SCREEN ================= -->
   <section class="panel" id="p-display" role="tabpanel" aria-labelledby="tab-display" hidden>
-    <div class="h">SCREEN</div>
-    <div class="box pad">
-      <div class="lbl">Brightness <span id="brightV"></span></div>
-      <input type="range" id="brightness" min="10" max="255" step="1" aria-label="Brightness">
-    </div>
-
-    <div class="h">CARDS</div>
-    <div class="box">
-      <div class="row"><div class="t"><b>Weather</b><span>Temperature, conditions, high and low</span></div><button class="sw" id="showWeatherCard" aria-label="Weather card"></button></div>
-      <div class="row"><div class="t"><b>PC stats</b><span>CPU, GPU, RAM and typing speed</span></div><button class="sw" id="showPcCard" aria-label="PC stats card"></button></div>
-      <div class="row" style="display:block;padding:14px 16px">
-        <div class="lbl">Switch cards every <span id="cycleV"></span></div>
-        <input type="range" id="cycleSec" min="3" max="30" step="1" aria-label="Seconds per card">
+    <div class="box mt">
+      <div class="lbl">BRIGHTNESS <span id="brightV"></span></div>
+      <div class="bar">
+        <button id="bDown" aria-label="Dimmer">&#9664;</button>
+        <div class="blocks" id="blocks" style="grid-template-columns:repeat(10,1fr)" aria-label="Brightness"></div>
+        <button id="bUp" aria-label="Brighter">&#9654;</button>
       </div>
     </div>
-
-    <div class="h">CLOCK</div>
-    <div class="box pad">
-      <div class="seg" style="grid-template-columns:1fr 1fr" id="timeFormat"><button data-v="12">12-hour</button><button data-v="24">24-hour</button></div>
+    <div class="box">
+      <div class="row"><div class="t">WEATHER CARD<span>TEMP, SKY, HIGH AND LOW</span></div><button class="sw" id="showWeatherCard"></button></div>
+      <div class="row"><div class="t">PC CARD<span>CPU, GPU, RAM, WPM</span></div><button class="sw" id="showPcCard"></button></div>
+      <div class="row" style="display:block">
+        <div class="lbl">SWITCH EVERY <span id="cycleV"></span></div>
+        <div class="seg" style="grid-template-columns:repeat(4,1fr)" id="cycleSec">
+          <button data-v="5">5S</button><button data-v="8">8S</button><button data-v="15">15S</button><button data-v="30">30S</button>
+        </div>
+      </div>
     </div>
-
-    <div class="h">NAPS</div>
-    <div class="box pad">
-      <div class="lbl">Falls asleep after <span id="sleepV"></span></div>
-      <input type="range" id="sleepTimeout" min="1" max="30" step="1" aria-label="Minutes before the cat falls asleep">
-      <div class="hint">Minutes without typing.</div>
+    <div class="box">
+      <div class="lbl">CLOCK</div>
+      <div class="seg" style="grid-template-columns:1fr 1fr" id="timeFormat"><button data-v="12">12H</button><button data-v="24">24H</button></div>
+    </div>
+    <div class="box">
+      <div class="lbl">NAP AFTER <span id="sleepV"></span></div>
+      <div class="seg" style="grid-template-columns:repeat(4,1fr)" id="sleepTimeout">
+        <button data-v="2">2M</button><button data-v="5">5M</button><button data-v="10">10M</button><button data-v="30">30M</button>
+      </div>
+      <div class="hint">MINUTES WITHOUT TYPING BEFORE THE CAT DOZES OFF.</div>
     </div>
   </section>
 
   <!-- ================= WEATHER & PC ================= -->
   <section class="panel" id="p-more" role="tabpanel" aria-labelledby="tab-more" hidden>
-    <div class="h">WEATHER</div>
-    <div class="box pad">
-      <label class="s" for="weatherLocation">Location</label>
-      <input type="text" id="weatherLocation" placeholder="80130 or Denver, CO" autocomplete="off">
-      <div class="hint" id="placeHint"></div>
-      <div class="gap"></div>
-      <label class="s" for="placeName">Name on the screen</label>
-      <input type="text" id="placeName" maxlength="16" placeholder="Highlands Ranch" autocomplete="off">
-      <div class="gap"></div>
-      <div class="seg" style="grid-template-columns:1fr 1fr" id="tempUnit"><button data-v="F">°F</button><button data-v="C">°C</button></div>
+    <div class="box mt">
+      <div class="lbl"><label for="weatherLocation">LOCATION</label></div>
+      <input type="text" id="weatherLocation" placeholder="80130" autocomplete="off">
+      <div class="hint" id="placeHint">ZIP CODE OR "CITY, ST"</div>
+      <div class="lbl mt"><label for="placeName">NAME ON SCREEN</label></div>
+      <input type="text" id="placeName" maxlength="16" placeholder="HIGHLANDS RANCH" autocomplete="off">
+      <div class="seg mt" style="grid-template-columns:1fr 1fr" id="tempUnit"><button data-v="F">°F</button><button data-v="C">°C</button></div>
     </div>
-
-    <div class="h">PC</div>
     <div class="box">
-      <div class="row"><div class="t"><b>CPU temperature</b><span id="cpuHint">Needs LibreHardwareMonitor on Windows</span></div><button class="sw" id="showCpuTemp" aria-label="Show CPU temperature"></button></div>
-      <div class="row"><div class="t"><b>GPU</b><span>Usage and temperature</span></div><button class="sw" id="showGpu" aria-label="Show GPU"></button></div>
-      <div class="row" id="loginRow"><div class="t"><b>Start with Windows</b><span>Runs in the tray when the PC starts</span></div><button class="sw" id="startAtLogin" aria-label="Start with Windows"></button></div>
+      <div class="row"><div class="t">CPU TEMP<span id="cpuHint">NEEDS LIBREHARDWAREMONITOR ON WINDOWS</span></div><button class="sw" id="showCpuTemp"></button></div>
+      <div class="row"><div class="t">GPU<span>USAGE AND TEMP</span></div><button class="sw" id="showGpu"></button></div>
+      <div class="row" id="loginRow"><div class="t">START WITH WINDOWS<span>RUNS IN THE TRAY</span></div><button class="sw" id="startAtLogin"></button></div>
     </div>
   </section>
 </main>
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast" class="box" role="status" aria-live="polite"></div>
 
 <script>
-const CATS = [['classic', 'Classic'], ['chonky', 'Chonky'], ['kitten', 'Kitten']];
-const COATS = [['default', 'Default'], ['grey', 'Grey'], ['tabby', 'Tabby']];
+const COATS = [['white', 'WHITE'], ['black', 'BLACK'], ['grey', 'GREY'], ['orange', 'TABBY'],
+               ['calico', 'CALICO'], ['tuxedo', 'TUXEDO'], ['siamese', 'SIAMESE'], ['cream', 'CREAM']];
 let S = {};
 const $ = id => document.getElementById(id);
-
-function img(style, cat, coat) {
-  return style === '8bit' ? 'cats/8bit.png' : `cats/${style}_${cat}_${coat}.png`;
-}
+const img = (style, coat) => style === '8bit' ? 'cats/8bit.png' : `cats/hd_${coat}.png`;
 
 function toast(msg, bad) {
   const t = $('toast');
   t.textContent = msg;
-  t.className = 'show' + (bad ? ' err' : '');
+  t.className = 'box show' + (bad ? ' err' : '');
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => t.className = '', 1400);
+  toast.t = setTimeout(() => t.className = 'box', 1300);
 }
 
 async function save(changes, quiet) {
@@ -176,14 +172,14 @@ async function save(changes, quiet) {
     const r = await fetch('api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes) });
     if (!r.ok) throw new Error(r.status);
     apply(await r.json());
-    if (!quiet) toast('Saved');
+    if (!quiet) toast('SAVED!');
   } catch (e) {
-    toast("Couldn't reach your PC", true);
+    toast("CAN'T REACH PC", true);
   }
 }
 
 let timers = {};
-function saveLater(key, value, ms = 250) {
+function saveLater(key, value, ms) {
   S[key] = value;
   render();
   clearTimeout(timers[key]);
@@ -193,61 +189,54 @@ function saveLater(key, value, ms = 250) {
 function apply(state) {
   S = state.settings;
   const st = state.status;
-  $('conn').className = 'pill' + (st.connected ? ' on' : '');
-  $('conn').lastChild.textContent = st.connected ? 'Cat connected' : 'Cat not plugged in';
-  $('placeHint').textContent = st.weatherError ? 'Couldn’t get weather: ' + st.weatherError : (st.place ? 'Found: ' + st.place : '');
+  $('conn').className = 'st' + (st.connected ? ' on' : '');
+  $('conn').lastChild.textContent = st.connected ? 'CAT ONLINE' : 'NOT PLUGGED IN';
+  $('placeHint').textContent = st.weatherError ? 'NO WEATHER: ' + st.weatherError.toUpperCase() : (st.place ? 'FOUND: ' + st.place.toUpperCase() : 'ZIP CODE OR "CITY, ST"');
   $('placeHint').className = 'hint' + (st.weatherError ? ' err' : '');
   $('loginRow').style.display = st.platform === 'win32' ? '' : 'none';
-  if (st.platform !== 'win32') $('cpuHint').textContent = 'When the computer reports it';
+  if (st.platform !== 'win32') $('cpuHint').textContent = 'WHEN THE COMPUTER REPORTS IT';
   render();
 }
 
 function seg(id, value) {
   for (const b of $(id).children) b.setAttribute('aria-pressed', b.dataset.v === String(value));
 }
-function sw(id, on) { $(id).setAttribute('aria-pressed', on !== false); }
-
-function tiles(id, list, current, src, disabled) {
-  const box = $(id);
-  if (!box.children.length) {
-    for (const [v, label] of list) {
-      const b = document.createElement('button');
-      b.className = 'tile';
-      b.dataset.v = v;
-      b.innerHTML = `<img alt=""><span>${label}</span>`;
-      b.onclick = () => save({ [id]: v });
-      box.appendChild(b);
-    }
-  }
-  for (const b of box.children) {
-    b.setAttribute('aria-pressed', b.dataset.v === current);
-    b.disabled = disabled;
-    const want = src(b.dataset.v);
-    const im = b.querySelector('img');
-    if (im.getAttribute('src') !== want) im.src = want;
-    im.className = S.style === 'cartoon' ? '' : 'px';
-  }
+function sw(id, on) {
+  $(id).setAttribute('aria-pressed', on !== false);
+  $(id).textContent = on !== false ? 'ON' : 'OFF';
 }
 
 function render() {
-  const eight = S.style === '8bit';
-  const pv = img(S.style, S.catKind, S.coat);
+  const pv = img(S.style, S.coat);
   if ($('pv').getAttribute('src') !== pv) $('pv').src = pv;
-  $('pv').className = S.style === 'cartoon' ? '' : 'px';
-  $('pvTag').textContent = S.catName || '';
+  const hearts = '♥♥♥♡';
+  $('plate').innerHTML = S.catName ? `<b></b><span>${hearts}</span>` : '';
+  if (S.catName) $('plate').firstChild.textContent = S.catName;
+  // coat tiles
+  const box = $('coat');
+  if (!box.children.length) {
+    for (const [v, label] of COATS) {
+      const b = document.createElement('button');
+      b.className = 'tile';
+      b.dataset.v = v;
+      b.innerHTML = `<img alt="" src="${img('hd', v)}"><span>${label}</span>`;
+      b.onclick = () => save({ coat: v, style: 'hd' });
+      box.appendChild(b);
+    }
+  }
+  for (const b of box.children) b.setAttribute('aria-pressed', S.style !== '8bit' && b.dataset.v === S.coat);
   seg('style', S.style);
-  $('styleHint').textContent = eight ? 'The original pixel cat. Cat and coat choices apply to Cartoon and Pixel.' : '';
-  tiles('catKind', CATS, S.catKind, v => img(eight ? 'cartoon' : S.style, v, S.coat), eight);
-  tiles('coat', COATS, S.coat, v => img(eight ? 'cartoon' : S.style, S.catKind, v), eight);
   if (document.activeElement !== $('catName')) $('catName').value = S.catName || '';
   if (document.activeElement !== $('weatherLocation')) $('weatherLocation').value = S.weatherLocation || '';
   if (document.activeElement !== $('placeName')) $('placeName').value = S.placeName || '';
-  $('brightness').value = S.brightness;
+  // brightness blocks
+  const seg10 = Math.round((S.brightness - 10) * 10 / 245);
+  [...$('blocks').children].forEach((el, i) => el.className = i < seg10 ? 'on' : '');
   $('brightV').textContent = Math.round(S.brightness * 100 / 255) + '%';
-  $('cycleSec').value = S.cycleSec;
-  $('cycleV').textContent = S.cycleSec + ' s';
-  $('sleepTimeout').value = S.sleepTimeout;
-  $('sleepV').textContent = S.sleepTimeout + ' min';
+  $('cycleV').textContent = S.cycleSec + 'S';
+  $('sleepV').textContent = S.sleepTimeout + 'M';
+  seg('cycleSec', S.cycleSec);
+  seg('sleepTimeout', S.sleepTimeout);
   seg('timeFormat', S.timeFormat);
   seg('tempUnit', S.tempUnit);
   for (const k of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) sw(k, S[k]);
@@ -262,39 +251,45 @@ for (const t of document.querySelectorAll('[role=tab]')) {
     }
   };
 }
-for (const id of ['style', 'timeFormat', 'tempUnit']) {
-  for (const b of $(id).children) b.onclick = () => save({ [id]: b.dataset.v });
-}
+for (const id of ['style', 'timeFormat', 'tempUnit']) for (const b of $(id).children) b.onclick = () => save({ [id]: b.dataset.v });
+for (const id of ['cycleSec', 'sleepTimeout']) for (const b of $(id).children) b.onclick = () => save({ [id]: +b.dataset.v });
 for (const id of ['showWeatherCard', 'showPcCard', 'showCpuTemp', 'showGpu', 'startAtLogin']) {
   $(id).onclick = () => {
     const next = S[id] === false;
     if ((id === 'showWeatherCard' && !next && S.showPcCard === false) || (id === 'showPcCard' && !next && S.showWeatherCard === false)) {
-      return toast('Keep at least one card on', true);
+      return toast('KEEP ONE CARD ON', true);
     }
     save({ [id]: next });
   };
 }
-$('brightness').oninput = e => saveLater('brightness', +e.target.value, 120);
-$('cycleSec').oninput = e => saveLater('cycleSec', +e.target.value, 400);
-$('sleepTimeout').oninput = e => saveLater('sleepTimeout', +e.target.value, 400);
+// brightness: 10 blocks, tap/drag or ◀ ▶
+const blocks = $('blocks');
+for (let i = 0; i < 10; i++) blocks.appendChild(document.createElement('i'));
+function blockAt(e) {
+  const r = blocks.getBoundingClientRect();
+  const n = Math.max(1, Math.min(10, Math.ceil((e.clientX - r.left) / r.width * 10)));
+  saveLater('brightness', Math.round(10 + n * 24.5), 150);
+}
+blocks.onpointerdown = e => { blocks.setPointerCapture(e.pointerId); blockAt(e); };
+blocks.onpointermove = e => { if (e.buttons) blockAt(e); };
+$('bDown').onclick = () => saveLater('brightness', Math.max(10, S.brightness - 25), 150);
+$('bUp').onclick = () => saveLater('brightness', Math.min(255, S.brightness + 25), 150);
 for (const id of ['catName', 'weatherLocation', 'placeName']) {
   const el = $(id);
-  const commit = () => { if (el.value.trim() !== (S[id] || '')) save({ [id]: el.value.trim() }); };
-  el.onchange = commit;
-  el.onkeydown = e => { if (e.key === 'Enter') { el.blur(); } };
+  el.onchange = () => { if (el.value.trim() !== (S[id] || '')) save({ [id]: el.value.trim() }); };
+  el.onkeydown = e => { if (e.key === 'Enter') el.blur(); };
 }
 
 async function load() {
   try {
-    const r = await fetch('api/settings');
-    apply(await r.json());
+    apply(await (await fetch('api/settings')).json());
   } catch (e) {
-    $('conn').className = 'pill';
-    $('conn').lastChild.textContent = "Can't reach your PC";
+    $('conn').className = 'st';
+    $('conn').lastChild.textContent = "CAN'T REACH PC";
   }
 }
 load();
-setInterval(load, 10000);  // pick up brightness changed on the cat's own screen
+setInterval(load, 10000);
 </script>
 </body>
 </html>

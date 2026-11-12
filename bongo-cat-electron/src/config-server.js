@@ -106,6 +106,10 @@ class ConfigServer {
                 res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'max-age=3600' });
                 return res.end(fs.readFileSync(file));
             }
+            if (rest === 'fonts/PressStart2P-Regular.ttf' && req.method === 'GET') {
+                res.writeHead(200, { 'Content-Type': 'font/ttf', 'Cache-Control': 'max-age=86400' });
+                return res.end(fs.readFileSync(path.join(RENDERER, rest)));
+            }
             if (rest === 'api/settings' && req.method === 'GET') {
                 return this.send(res, 200, 'application/json', JSON.stringify(this.o.getState()));
             }

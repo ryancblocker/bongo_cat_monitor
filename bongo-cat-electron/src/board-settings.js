@@ -2,13 +2,11 @@
  * Settings the phone page may change, with their allowed values, and the
  * SET: line that carries the board's share of them over USB.
  */
-const STYLES = ['cartoon', 'pixel', '8bit'];
-const CATS = ['classic', 'chonky', 'kitten'];
-const COATS = ['default', 'grey', 'tabby'];
+const STYLES = ['hd', '8bit'];  // HD pixel cat, or the original 8-bit sprites
+const COATS = ['white', 'black', 'grey', 'orange', 'calico', 'tuxedo', 'siamese', 'cream'];
 
 const RULES = {
     style: v => STYLES.includes(v) ? v : undefined,
-    catKind: v => CATS.includes(v) ? v : undefined,
     coat: v => COATS.includes(v) ? v : undefined,
     catName: v => typeof v === 'string' ? cleanName(v) : undefined,
     brightness: v => int(v, 10, 255),
@@ -51,9 +49,8 @@ function validate(changes) {
 function setLine(s) {
     const cards = (s.showWeatherCard !== false ? 1 : 0) | (s.showPcCard !== false ? 2 : 0);
     return 'SET:' + [
-        `style=${s.style || 'cartoon'}`,
-        `cat=${s.catKind || 'classic'}`,
-        `coat=${s.coat || 'tabby'}`,
+        `style=${STYLES.includes(s.style) ? s.style : 'hd'}`,
+        `coat=${COATS.includes(s.coat) ? s.coat : 'white'}`,
         `name=${cleanName(s.catName || '')}`,
         `bright=${int(s.brightness, 10, 255) ?? 200}`,
         `cycle=${int(s.cycleSec, 3, 60) ?? 8}`,
@@ -63,4 +60,4 @@ function setLine(s) {
     ].join('|');
 }
 
-module.exports = { validate, setLine, cleanName, STYLES, CATS, COATS };
+module.exports = { validate, setLine, cleanName, STYLES, COATS };

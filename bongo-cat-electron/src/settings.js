@@ -6,6 +6,7 @@ const Store = require('electron-store');
  */
 class SettingsManager {
     constructor() {
+        SettingsManager.migrate();
         // Initialize electron-store with schema validation
         this.store = new Store({
             name: 'bongo-cat-settings',
@@ -49,9 +50,8 @@ class SettingsManager {
                 tempUnit: { type: 'string', enum: ['F', 'C'], default: 'F' },
                 startAtLogin: { type: 'boolean', default: true },
                 // Ross edition v2: cat, cards, brightness, phone config page
-                style: { type: 'string', enum: ['cartoon', 'pixel', '8bit'], default: 'cartoon' },
-                catKind: { type: 'string', enum: ['classic', 'chonky', 'kitten'], default: 'classic' },
-                coat: { type: 'string', enum: ['default', 'grey', 'tabby'], default: 'tabby' },
+                style: { type: 'string', enum: ['hd', '8bit'], default: 'hd' },
+                coat: { type: 'string', enum: ['white', 'black', 'grey', 'orange', 'calico', 'tuxedo', 'siamese', 'cream'], default: 'white' },
                 catName: { type: 'string', default: '' },
                 brightness: { type: 'number', minimum: 10, maximum: 255, default: 200 },
                 cycleSec: { type: 'number', minimum: 3, maximum: 60, default: 8 },
@@ -84,6 +84,27 @@ class SettingsManager {
         });
         
         console.log('Settings Manager initialized');
+    }
+
+    /**
+     * Earlier test builds stored cat values the schema no longer allows (style
+     * "cartoon"/"pixel", coat "default"/"tabby", catKind). Fix them before the
+     * validating store opens, or it would refuse to load.
+     */
+    static migrate() {
+        try {
+            const raw = new Store({ name: 'bongo-cat-settings' });
+            const style = raw.get('style');
+            if (style !== undefined && !['hd', '8bit'].includes(style)) raw.set('style', style === '8bit' ? '8bit' : 'hd');
+            const coatMap = { default: 'white', tabby: 'orange', grey: 'grey' };
+            const coat = raw.get('coat');
+            if (coat !== undefined && !['white', 'black', 'grey', 'orange', 'calico', 'tuxedo', 'siamese', 'cream'].includes(coat)) {
+                raw.set('coat', coatMap[coat] || 'white');
+            }
+            if (raw.has('catKind')) raw.delete('catKind');
+        } catch (error) {
+            console.error('Settings migration failed:', error.message);
+        }
     }
 
     /**

@@ -1,10 +1,20 @@
+// Game Boy Color style UI: everything on a 2 px grid, Press Start 2P text,
+// Pokémon-style text boxes (ink frame, light rim, notched corners, blinking ▼),
+// HP-bar stats and Tamagotchi mood hearts.
 #include "ui.h"
 
 #include <math.h>
 
 #include "state.h"
 
+// palette
+static const uint32_t INK = 0x202838, PAPER = 0xF8F8F0, RIM = 0x98B0D0, SUB = 0x687088;
+static const uint32_t HDR = 0x283050, HDR_LINE = 0x181C30, GOLD = 0xF8C038;
 static const char* const DEG = "\xC2\xB0";
+static const char* const HEART = "\xE2\x99\xA5";  // ♥
+static const char* const DOWN = "\xE2\x96\xBC";   // ▼
+static const char* const LEFT = "\xE2\x97\x80";   // ◀
+static const char* const RIGHT = "\xE2\x96\xB6";  // ▶
 
 void timeString(char* out, size_t n) {
   if (!clk.valid) {
@@ -14,246 +24,298 @@ void timeString(char* out, size_t n) {
   uint32_t s = clk.secOfDay();
   int h = s / 3600, m = (s / 60) % 60;
   if (settings.h24) snprintf(out, n, "%02d:%02d", h, m);
-  else snprintf(out, n, "%d:%02d %s", h % 12 == 0 ? 12 : h % 12, m, h < 12 ? "AM" : "PM");
+  else snprintf(out, n, "%d:%02d%s", h % 12 == 0 ? 12 : h % 12, m, h < 12 ? "AM" : "PM");
 }
 
-// ------------------------------------------------------------------ icons (centre cx,cy; s = scale, 1 ~ 24 px)
-static void cloudShape(Frame& f, float cx, float cy, float s, uint32_t c) {
-  f.fillCircle(cx - 6 * s, cy + 1 * s, 6 * s, c);
-  f.fillCircle(cx + 1 * s, cy - 3 * s, 7.5f * s, c);
-  f.fillCircle(cx + 8 * s, cy + 1 * s, 5.5f * s, c);
-  f.fillRRect(cx - 12 * s, cy + 0 * s, 25 * s, 7 * s, 3.5f * s, c);
+static void upper(char* s) {
+  for (; *s; s++) *s = toupper((unsigned char)*s);
 }
 
-static void sunShape(Frame& f, float cx, float cy, float s) {
+static int ev(int v) { return v & ~1; }  // snap to the 2 px grid
+
+// Pokémon text box: ink frame, light rim, paper inside, notched corners
+static void box(Frame& f, int x, int y, int w, int h) {
+  if (!f.vis(y, h)) return;
+  f.fill(x + 2, y, w - 4, h, c565(INK));
+  f.fill(x, y + 2, w, h - 4, c565(INK));
+  f.fill(x + 4, y + 2, w - 8, h - 4, c565(RIM));
+  f.fill(x + 2, y + 4, w - 4, h - 8, c565(RIM));
+  f.fill(x + 6, y + 4, w - 12, h - 8, c565(PAPER));
+  f.fill(x + 4, y + 6, w - 8, h - 12, c565(PAPER));
+}
+
+// ------------------------------------------------------------------ pixel icons (2 px cells)
+static void cloudIcon(Frame& f, int cx, int cy, int R, uint32_t fillc, uint32_t shade) {
+  struct D { float x, y, r; } d[] = {{-0.38f, 0.12f, 0.42f}, {0.08f, -0.18f, 0.56f}, {0.5f, 0.14f, 0.38f}};
+  int bx = ev(cx - (int)(0.8f * R)), by = ev(cy + (int)(0.1f * R)), bw = ev((int)(1.42f * R)), bh = ev((int)(0.46f * R));
+  for (auto& p : d) f.disc(ev(cx + (int)(p.x * R)), ev(cy + (int)(p.y * R)), (int)(p.r * R) + 2, c565(INK));
+  f.fill(bx - 2, by, bw + 4, bh + 2, c565(INK));
+  for (auto& p : d) f.disc(ev(cx + (int)(p.x * R)), ev(cy + (int)(p.y * R)), (int)(p.r * R), c565(fillc));
+  f.fill(bx, by, bw, bh - 2, c565(fillc));
+  f.fill(bx, by + bh - 2, bw, 2, c565(shade));
+}
+
+static void sunIcon(Frame& f, int cx, int cy, int R) {
+  int b = R > 10 ? 4 : 2;
   for (int i = 0; i < 8; i++) {
     float a = i * (float)M_PI / 4;
-    f.wideLine(cx + cosf(a) * 8 * s, cy + sinf(a) * 8 * s, cx + cosf(a) * 11.5f * s, cy + sinf(a) * 11.5f * s, 1.1f * s, 0xFFB300);
+    f.fill(ev(cx + (int)(cosf(a) * R * 0.92f) - b / 2), ev(cy + (int)(sinf(a) * R * 0.92f) - b / 2), b, b, c565(0xF09830));
   }
-  f.fillCircle(cx, cy, 6 * s, 0xFFC83D);
+  int r = (int)(R * 0.6f);
+  f.disc(cx, cy, r + 2, c565(INK));
+  f.disc(cx, cy, r, c565(0xF8D040));
+  f.fill(ev(cx - r / 2), ev(cy - r / 2), 2, 2, c565(0xFFF8C0));
 }
 
-static void moonShape(Frame& f, float cx, float cy, float s, uint32_t bite) {
-  f.fillCircle(cx, cy, 8 * s, 0xF2EBC9);
-  f.fillCircle(cx + 4.5f * s, cy - 3 * s, 7 * s, bite);
+static void moonIcon(Frame& f, int cx, int cy, int R, uint32_t bg) {
+  int r = (int)(R * 0.62f);
+  f.disc(cx, cy, r + 2, c565(INK));
+  f.disc(cx, cy, r, c565(0xF0E8C0));
+  f.disc(ev(cx + r / 2 + 2), ev(cy - r / 3), r, c565(bg));
 }
 
-static void weatherIcon(Frame& f, Sky k, bool day, int cx, int cy, float s, uint32_t bg, bool onDark) {
-  uint32_t cloud = onDark ? 0xD7DEE8 : 0x9DAABB;
-  uint32_t darkCloud = onDark ? 0x9BA6B6 : 0x6E7B8C;
+static void weatherIcon(Frame& f, Sky k, bool day, int cx, int cy, int R, uint32_t bg) {
+  uint32_t white = 0xF8F8F8, light = 0xC8D0DC, grey = 0xA0A8B8, dgrey = 0x707888;
+  int b = R > 10 ? 4 : 2;
   switch (k) {
     case Sky::Clear:
-      if (day) sunShape(f, cx, cy, s);
-      else moonShape(f, cx, cy, s, bg);
+      if (day) sunIcon(f, cx, cy, R);
+      else moonIcon(f, cx, cy, R, bg);
       break;
     case Sky::Partly:
-      if (day) sunShape(f, cx + 5 * s, cy - 5 * s, s * 0.8f);
-      else moonShape(f, cx + 5 * s, cy - 5 * s, s * 0.75f, bg);
-      cloudShape(f, cx - 2 * s, cy + 3 * s, s * 0.85f, cloud);
+      if (day) sunIcon(f, ev(cx + R / 3), ev(cy - R / 3), R * 3 / 4);
+      else moonIcon(f, ev(cx + R / 3), ev(cy - R / 3), R * 3 / 4, bg);
+      cloudIcon(f, ev(cx - R / 6), ev(cy + R / 4), R * 3 / 4, white, light);
       break;
     case Sky::Cloudy:
-      cloudShape(f, cx + 4 * s, cy - 4 * s, s * 0.7f, darkCloud);
-      cloudShape(f, cx - 1 * s, cy + 2 * s, s, cloud);
+      cloudIcon(f, ev(cx + R / 4), ev(cy - R / 4), R * 2 / 3, grey, dgrey);
+      cloudIcon(f, ev(cx - R / 8), ev(cy + R / 6), R * 3 / 4, white, light);
       break;
     case Sky::Fog:
-      for (int i = 0; i < 3; i++) f.wideLine(cx - 11 * s + (i & 1) * 3 * s, cy - 6 * s + i * 6 * s, cx + 11 * s - (i & 1) * 2 * s, cy - 6 * s + i * 6 * s, 1.6f * s, cloud);
+      for (int i = 0; i < 3; i++) {
+        int y = ev(cy - R / 2 + i * R / 2);
+        f.fill(ev(cx - R + (i & 1) * 4), y, ev(2 * R - 4), b, c565(INK));
+        f.fill(ev(cx - R + 2 + (i & 1) * 4), y, ev(2 * R - 8), 2, c565(light));
+      }
       break;
     case Sky::Drizzle:
     case Sky::Rain:
-    case Sky::Storm:
-      cloudShape(f, cx, cy - 4 * s, s, k == Sky::Storm ? darkCloud : cloud);
-      if (k == Sky::Storm) {
-        f.triangle(cx + 1 * s, cy + 2 * s, cx - 5 * s, cy + 11 * s, cx + 0 * s, cy + 10 * s, 0xFFC83D);
-        f.triangle(cx - 1 * s, cy + 9 * s, cx + 5 * s, cy + 8 * s, cx - 4 * s, cy + 17 * s, 0xFFC83D);
-      } else {
-        int n = k == Sky::Rain ? 3 : 2;
-        for (int i = 0; i < n; i++) {
-          float x = cx - 6 * s + i * (12.0f / max(1, n - 1)) * s;
-          f.wideLine(x, cy + 5 * s, x - 2 * s, cy + 11 * s, 1.1f * s, 0x4A90E2);
-        }
+    case Sky::Snow:
+    case Sky::Storm: {
+      bool storm = k == Sky::Storm;
+      cloudIcon(f, cx, ev(cy - R / 4), R * 3 / 4, storm ? grey : white, storm ? dgrey : light);
+      int y0 = ev(cy + R / 2);
+      for (int i = 0; i < 3; i++) {
+        int x = ev(cx - R / 2 + i * R / 2);
+        if (k == Sky::Snow) f.fill(x, y0 + (i & 1) * b, b, b, c565(0x80B0E8));
+        else if (!storm && (k == Sky::Rain || i != 1)) f.fill(x, y0 + (i & 1) * 2, 2, b + 2, c565(0x3870D0));
+      }
+      if (storm) {
+        f.fill(ev(cx), y0 - 2, b, b + 2, c565(0xF8C030));
+        f.fill(ev(cx) - b, y0 + b, b, b + 2, c565(0xF8C030));
       }
       break;
-    case Sky::Snow:
-      cloudShape(f, cx, cy - 4 * s, s, cloud);
-      for (int i = 0; i < 3; i++) f.fillCircle(cx - 6 * s + i * 6 * s, cy + 8 * s + (i & 1) * 3 * s, 1.7f * s, 0x7FB2E5);
-      break;
+    }
   }
 }
 
-static void gear(Frame& f, int cx, int cy, uint32_t c) {
-  for (int i = 0; i < 8; i++) {
-    float a = i * (float)M_PI / 4 + 0.39f;
-    f.wideLine(cx + cosf(a) * 5.5f, cy + sinf(a) * 5.5f, cx + cosf(a) * 8.8f, cy + sinf(a) * 8.8f, 1.6f, c);
-  }
-  f.ring(cx, cy, 7, 3, c);
-}
+static const char* const GEAR[] = {
+    "...ww...",
+    ".w.ww.w.",
+    "..wwww..",
+    "www..www",
+    "www..www",
+    "..wwww..",
+    ".w.ww.w.",
+    "...ww...",
+};
 
-// ------------------------------------------------------------------ main screen
-static void bar(Frame& f, int x, int y, int w, int pct, bool onDark) {
+// ------------------------------------------------------------------ main screen pieces
+static void hpBar(Frame& f, int x, int y, int w, int pct) {
   pct = constrain(pct, 0, 100);
-  f.blendRRect(x, y, w, 6, 3, onDark ? c565(0xFFFFFF) : c565(0x1D2433), 40);
-  uint32_t c = pct < 60 ? 0x34C759 : (pct < 85 ? 0xFFB020 : 0xFF453A);
-  int fw = max(6, w * pct / 100);
-  f.fillRRect(x, y, fw, 6, 3, c);
+  f.fill(x, y, w, 8, c565(INK));
+  f.fill(x + 2, y + 2, w - 4, 4, c565(0x485068));
+  uint32_t c = pct < 60 ? 0x40C850 : (pct < 85 ? 0xF8C030 : 0xE84830);
+  int fw = ev((w - 4) * pct / 100);
+  if (pct > 0 && fw < 2) fw = 2;
+  f.fill(x + 2, y + 2, fw, 4, c565(c));
+  if (fw > 2) f.fill(x + 2, y + 2, fw, 2, lerp565(c565(c), c565(0xFFFFFF), 90));  // shine
 }
 
-static void weatherCard(Frame& f, int x, int y, bool dark, uint32_t ink, uint32_t sub, uint32_t biteColor) {
+static void nextArrow(Frame& f, int x, int y, uint32_t t) {
+  f.text(DOWN, x, y + (((t / 450) & 1) ? 2 : 0), PX8, INK);
+}
+
+static void weatherCard(Frame& f, int x, int y) {
   if (!weather.valid) {
-    f.text("Waiting for weather\xE2\x80\xA6", x + CARD_W / 2, y + CARD_H / 2, INTER_13, sub, AL_C);
+    f.text("WAITING FOR", x + CARD_W / 2, y + 36, PX8, SUB, AL_C);
+    f.text("WEATHER...", x + CARD_W / 2, y + 50, PX8, SUB, AL_C);
     return;
   }
   Sky k = skyFor(weather.code);
-  weatherIcon(f, k, weather.day, x + 30, y + 34, 1.3f, biteColor, dark);
-  char buf[48];
+  weatherIcon(f, k, weather.day, x + 30, y + 30, 16, PAPER);
+  char buf[40];
   snprintf(buf, sizeof buf, "%d%s", weather.temp, DEG);
-  bool fits = f.textWidth(buf, INTER_40B) <= 76;  // "100°" / "-12°" step down
-  f.text(buf, x + 56, y + 34, fits ? INTER_40B : INTER_22B, ink);
-  int cx = x + 140;
-  const char* cond = skyName(k, weather.day);
-  bool big = f.textWidth(cond, INTER_15B) <= CARD_W - 146;  // step down a size before truncating
-  f.text(cond, cx, y + 20, big ? INTER_15B : INTER_13, ink, AL_L, CARD_W - 146);
-  f.text(clk.date, cx, y + 38, INTER_11, sub, AL_L, CARD_W - 146);
-  f.text(weather.place, cx, y + 53, INTER_11, sub, AL_L, CARD_W - 146);
-  if (weather.hum >= 0)
-    snprintf(buf, sizeof buf, "H %d%s  L %d%s  \xC2\xB7  %d %s  \xC2\xB7  %d%%", weather.hi, DEG, weather.lo, DEG, weather.wind, weather.windUnit, weather.hum);
-  else
-    snprintf(buf, sizeof buf, "H %d%s  L %d%s  \xC2\xB7  %d %s", weather.hi, DEG, weather.lo, DEG, weather.wind, weather.windUnit);
-  f.text(buf, x + 14, y + 69, INTER_11, sub, AL_L, CARD_W - 28);
+  f.text(buf, x + 56, y + 24, PX16, INK);
+  f.text(skyName(k, weather.day), x + 56, y + 44, PX8, INK, AL_L, 76);
+  int rx = x + 136;
+  snprintf(buf, sizeof buf, "H%d%s L%d%s", weather.hi, DEG, weather.lo, DEG);
+  f.text(buf, rx, y + 16, PX8, SUB, AL_L, CARD_W - 144);
+  snprintf(buf, sizeof buf, "WIND %d", weather.wind);
+  f.text(buf, rx, y + 30, PX8, SUB, AL_L, CARD_W - 144);
+  if (weather.hum >= 0) {
+    snprintf(buf, sizeof buf, "HUM %d%%", weather.hum);
+    f.text(buf, rx, y + 44, PX8, SUB, AL_L, CARD_W - 144);
+  }
+  char place[40];
+  strlcpy(place, weather.place, sizeof place);
+  upper(place);
+  f.text(place, x + 12, y + 62, PX8, INK, AL_L, CARD_W - 24);
+  char date[24];
+  strlcpy(date, clk.date, sizeof date);
+  upper(date);
+  f.text(date, x + 12, y + 74, PX8, SUB, AL_L, CARD_W - 40);
 }
 
-static void pcCard(Frame& f, int x, int y, bool dark, uint32_t ink, uint32_t sub) {
+static void pcCard(Frame& f, int x, int y) {
   if (!pc.valid) {
-    f.text("Waiting for your PC\xE2\x80\xA6", x + CARD_W / 2, y + CARD_H / 2, INTER_13, sub, AL_C);
+    f.text("WAITING FOR", x + CARD_W / 2, y + 36, PX8, SUB, AL_C);
+    f.text("YOUR PC...", x + CARD_W / 2, y + 50, PX8, SUB, AL_C);
     return;
   }
   bool gpu = pc.gpu >= 0 || pc.gpuT >= 0;
-  int rows = gpu ? 4 : 3;
-  int step = gpu ? 18 : 22, y0 = y + (CARD_H - (rows - 1) * step) / 2;
+  int step = gpu ? 16 : 20;
+  int y0 = y + 16 + (gpu ? 0 : 4);
   char v[24];
   int r = 0;
   auto row = [&](const char* label, int pct, const char* value) {
     int cy = y0 + r * step;
-    f.text(label, x + 14, cy, INTER_13, sub);
-    bar(f, x + 58, cy - 3, 92, pct, dark);
-    f.text(value, x + CARD_W - 12, cy, INTER_13, ink, AL_R);
+    f.text(label, x + 12, cy, PX8, INK);
+    hpBar(f, x + 46, cy - 4, 86, pct);
+    f.text(value, x + CARD_W - 12, cy, PX8, INK, AL_R);
     r++;
   };
-  if (pc.cpuT >= 0) snprintf(v, sizeof v, "%d%%  %d%s", pc.cpu, pc.cpuT, DEG);
+  if (pc.cpuT >= 0) snprintf(v, sizeof v, "%d%% %d%s", pc.cpu, pc.cpuT, DEG);
   else snprintf(v, sizeof v, "%d%%", pc.cpu);
   row("CPU", pc.cpu, v);
   if (gpu) {
-    if (pc.gpu >= 0 && pc.gpuT >= 0) snprintf(v, sizeof v, "%d%%  %d%s", pc.gpu, pc.gpuT, DEG);
+    if (pc.gpu >= 0 && pc.gpuT >= 0) snprintf(v, sizeof v, "%d%% %d%s", pc.gpu, pc.gpuT, DEG);
     else if (pc.gpu >= 0) snprintf(v, sizeof v, "%d%%", pc.gpu);
     else snprintf(v, sizeof v, "%d%s", pc.gpuT, DEG);
     row("GPU", max(0, pc.gpu), v);
   }
   snprintf(v, sizeof v, "%d%%", pc.ram);
   row("RAM", pc.ram, v);
-  snprintf(v, sizeof v, "%d wpm", pc.wpm);
+  snprintf(v, sizeof v, "%d", pc.wpm);
   row("WPM", pc.wpm * 100 / 120, v);
 }
 
-static void card(Frame& f, int which, int x, bool dark, uint32_t ink, uint32_t sub, uint32_t bite) {
-  if (which == CARD_WEATHER) weatherCard(f, x, CARD_Y, dark, ink, sub, bite);
-  else pcCard(f, x, CARD_Y, dark, ink, sub);
+static void card(Frame& f, int which, int x) {
+  if (which == CARD_WEATHER) weatherCard(f, x, CARD_Y);
+  else pcCard(f, x, CARD_Y);
 }
 
 void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
   fx.draw(f);
 
-  // cat: body -> face -> desk -> paws -> effect
-  const CatImg* const* L = CAT_TABLE[settings.style % 3][settings.cat % 3][settings.coat % 3];
-  f.cat(L[cat.body()]);
-  f.cat(L[cat.face()]);
+  // cat: body -> face -> desk -> paws -> effects (body, face and paws breathe together)
+  const CatImg* const* L = CAT_TABLE[settings.style % 2][settings.coat % COAT_COUNT];
+  int dy = cat.bob();
+  f.cat(L[cat.body()], dy);
+  f.cat(L[cat.face()], dy);
   f.cat(L[L_DESK]);
-  if (cat.paws() != L_COUNT) f.cat(L[cat.paws()]);
+  if (cat.paws() != L_COUNT) f.cat(L[cat.paws()], dy);
   if (cat.fx() != L_COUNT) f.cat(L[cat.fx()]);
+  if (cat.fx2() != L_COUNT) f.cat(L[cat.fx2()]);
 
-  bool dark = !fx.isDay();
-  uint32_t ink = dark ? 0xF4F6FA : 0x1D2433, sub = dark ? 0xAEB8C8 : 0x566176;
-  uint16_t panel = dark ? c565(0x0E1422) : c565(0xFFFFFF);
-  uint8_t panelA = dark ? 175 : 195;
-  uint32_t bite = dark ? 0x1B2232 : 0xF6F8FB;  // card colour behind the moon icon
-
-  // name tag
-  if (settings.name[0] && f.vis(CAT_Y + 2, 20)) {
-    int w = f.textWidth(settings.name, INTER_13) + 18;
-    f.blendRRect(8, CAT_Y + 4, w, 20, 10, c565(0x10141C), 120);
-    f.text(settings.name, 8 + w / 2, CAT_Y + 14, INTER_13, 0xFFFFFF, AL_C);
+  // name plate with mood hearts (Tamagotchi style)
+  if (settings.name[0] && f.vis(CAT_Y, 40)) {
+    char nm[17];
+    strlcpy(nm, settings.name, sizeof nm);
+    upper(nm);
+    int w = ev(max(f.textWidth(nm, PX8), 4 * 10) + 22);
+    int y = CAT_Y + 2;
+    box(f, 6, y, w, 36);
+    f.text(nm, 16, y + 13, PX8, INK);
+    int h = cat.hearts();
+    for (int i = 0; i < 4; i++) f.text(HEART, 16 + i * 10, y + 25, PX8, i < h ? 0xE84858 : 0xC8D0DC);
   }
 
-  // card (slides horizontally when changing)
+  // card (slides when changing), with the blinking "more" arrow
   if (f.vis(CARD_Y, CARD_H) && v.nCards > 0) {
-    f.blendRRect(CARD_X, CARD_Y, CARD_W, CARD_H, 14, panel, panelA);
-    f.setClip(CARD_X, CARD_Y, CARD_W, CARD_H);
-    float e = v.slide * v.slide * (3 - 2 * v.slide);  // smoothstep
-    int dx = (int)(e * CARD_W);
-    card(f, v.card, CARD_X - dx, dark, ink, sub, bite);
-    if (v.next >= 0) card(f, v.next, CARD_X + CARD_W - dx, dark, ink, sub, bite);
+    box(f, CARD_X, CARD_Y, CARD_W, CARD_H);
+    f.setClip(CARD_X + 6, CARD_Y + 4, CARD_W - 12, CARD_H - 8);
+    float e = v.slide * v.slide * (3 - 2 * v.slide);
+    int dx = ev((int)(e * CARD_W));
+    card(f, v.card, CARD_X - dx);
+    if (v.next >= 0) card(f, v.next, CARD_X + CARD_W - dx);
     f.clearClip();
-  }
-  // page dots
-  if (v.nCards > 1 && f.vis(CARD_Y + CARD_H + 2, 8)) {
-    int active = v.next >= 0 && v.slide > 0.5f ? v.next : v.card;
-    for (int i = 0; i < v.nCards; i++)
-      f.blendCircle(114 + i * 12, CARD_Y + CARD_H + 6, 2.6f, c565(0xFFFFFF), i == active ? 230 : 90);
+    if (v.nCards > 1 && v.next < 0) nextArrow(f, CARD_X + CARD_W - 20, CARD_Y + CARD_H - 14, v.t);
   }
 
-  // header
-  if (f.vis(0, HEADER_H)) {
-    f.blendRect(0, 0, SW, HEADER_H, c565(0x0B0F18), dark ? 120 : 70);
+  // header bar
+  if (f.vis(0, HEADER_H + 2)) {
+    f.fill(0, 0, SW, HEADER_H, c565(HDR));
+    f.fill(0, HEADER_H, SW, 2, c565(HDR_LINE));
     char buf[24];
     if (weather.valid) {
-      weatherIcon(f, skyFor(weather.code), weather.day, 16, 15, 0.62f, 0x2A3140, true);
+      weatherIcon(f, skyFor(weather.code), weather.day, 12, 11, 8, HDR);
       snprintf(buf, sizeof buf, "%d%s", weather.temp, DEG);
     } else {
       snprintf(buf, sizeof buf, "--%s", DEG);
     }
-    f.text(buf, 30, 15, INTER_17B, 0xFFFFFF);
+    f.text(buf, 26, 11, PX8, 0xFFFFFF);
     timeString(buf, sizeof buf);
-    f.text(buf, SW / 2, 15, INTER_17B, 0xFFFFFF, AL_C);
-    gear(f, GEAR_X, GEAR_Y, 0xFFFFFF);
+    f.text(buf, SW / 2 + 4, 11, PX8, 0xFFFFFF, AL_C);
+    f.bitmap(GEAR, 8, 8, GEAR_X + 2, GEAR_Y + 1, 2);
   }
   fx.drawFlash(f);
 }
 
-// ------------------------------------------------------------------ settings screen
-void drawSettings(Frame& f, bool active) {
-  f.spr->fillRect(0, 0, SW, STRIP, (uint32_t)0x10141Cu);  // u32 = RGB888 (a plain int is read as RGB565)
-  f.text("Settings", 16, 22, INTER_17B, 0xFFFFFF);
-  f.fillCircle(220, 22, 14, 0x2A3140);
-  f.wideLine(214, 16, 226, 28, 1.4f, 0xFFFFFF);
-  f.wideLine(226, 16, 214, 28, 1.4f, 0xFFFFFF);
+// ------------------------------------------------------------------ settings ("OPTIONS")
+void drawSettings(Frame& f, uint32_t t) {
+  f.fill(0, f.oy, SW, STRIP, c565(HDR));
+  f.ditherRect(0, f.oy, SW, STRIP, c565(0x2C3658));
+
+  box(f, 6, 6, 140, 28);
+  f.text("OPTIONS", 20, 20, PX8, INK);
+  box(f, 152, 6, 82, 28);
+  f.text(LEFT, 166, 20, PX8, INK);
+  f.text("BACK", 180, 20, PX8, INK);
 
   if (configUrl[0]) {
-    f.fillRRect(45, 46, 150, 150, 12, 0xFFFFFF);
-    f.qr(configUrl, 54, 55, 132);
-    f.text("Scan with your phone", SW / 2, 214, INTER_15B, 0xFFFFFF, AL_C);
-    f.text("to pick a cat, name it and more", SW / 2, 232, INTER_11, 0xAEB8C8, AL_C);
-    f.text(configUrl, SW / 2, 248, INTER_11, 0x7C8798, AL_C, 220);
+    box(f, 38, 40, 164, 164);
+    f.qr(configUrl, 50, 52, 140);
+    box(f, 6, 208, 228, 50);
+    f.text("SCAN WITH YOUR PHONE", SW / 2, 224, PX8, INK, AL_C);
+    f.text("TO PICK YOUR CAT!", SW / 2, 240, PX8, INK, AL_C);
   } else {
-    f.text("Open Bongo Cat on your PC", SW / 2, 118, INTER_15B, 0xFFFFFF, AL_C);
-    f.text("The setup code shows up here", SW / 2, 140, INTER_11, 0xAEB8C8, AL_C);
-    f.text("once the app is running.", SW / 2, 156, INTER_11, 0xAEB8C8, AL_C);
+    box(f, 6, 90, 228, 76);
+    f.text("OPEN BONGO CAT", SW / 2, 112, PX8, INK, AL_C);
+    f.text("ON YOUR PC. THE", SW / 2, 128, PX8, INK, AL_C);
+    f.text("CODE SHOWS UP HERE.", SW / 2, 144, PX8, INK, AL_C);
   }
 
-  // brightness slider
+  // brightness: [<] [##########] [>]
+  box(f, 6, 262, 228, 52);
+  int seg = (int)roundf((settings.bright - 10) * 10.0f / 245);
   char pct[8];
   snprintf(pct, sizeof pct, "%d%%", (settings.bright * 100 + 127) / 255);
-  f.text("Brightness", 16, 274, INTER_13, 0xFFFFFF);
-  f.text(pct, 224, 274, INTER_13, 0xAEB8C8, AL_R);
-  int kx = SLIDER_X0 + (int)((settings.bright - 10) * (SLIDER_X1 - SLIDER_X0) / 245.0f);
-  f.fillRRect(SLIDER_X0, SLIDER_Y - 4, SLIDER_X1 - SLIDER_X0, 8, 4, 0x2A3140);
-  f.fillRRect(SLIDER_X0, SLIDER_Y - 4, max(8, kx - SLIDER_X0), 8, 4, 0xFFC83D);
-  f.fillCircle(kx, SLIDER_Y, active ? 12 : 10, 0xFFFFFF);
-  // dim / bright sun marks at the ends
-  f.fillCircle(18, SLIDER_Y, 3, 0x7C8798);
-  f.ring(224, SLIDER_Y, 6, 2, 0xFFC83D);
-  f.fillCircle(224, SLIDER_Y, 3, 0xFFC83D);
+  f.text("BRIGHTNESS", 18, 276, PX8, INK);
+  f.text(pct, 222, 276, PX8, SUB, AL_R);
+  f.text(LEFT, BR_MINUS_X + 6, BR_Y + 16, PX8, INK);
+  f.text(RIGHT, BR_PLUS_X + 18, BR_Y + 16, PX8, INK);
+  for (int i = 0; i < 10; i++) {
+    int x = BR_BAR_X + i * 13;
+    f.fill(x, BR_Y + 10, 12, 12, c565(INK));
+    f.fill(x + 2, BR_Y + 12, 8, 8, c565(i < seg ? GOLD : 0xC8D0DC));
+  }
+  (void)t;
 }
 
 void drawMessage(Frame& f, const char* title, const char* sub) {
-  f.spr->fillRect(0, 0, SW, STRIP, (uint32_t)0x10141Cu);  // u32 = RGB888 (a plain int is read as RGB565)
-  f.text(title, SW / 2, 150, INTER_17B, 0xFFFFFF, AL_C);
-  f.text(sub, SW / 2, 176, INTER_13, 0xAEB8C8, AL_C, 220);
+  f.fill(0, f.oy, SW, STRIP, c565(HDR));
+  box(f, 10, 116, 220, 80);
+  f.text(title, SW / 2, 140, PX8, INK, AL_C, 200);
+  f.text(sub, SW / 2, 164, PX8, SUB, AL_C, 200);
 }
