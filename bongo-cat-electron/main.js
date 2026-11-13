@@ -339,10 +339,13 @@ async function applyChanges(changes) {
     await esp32SerialManager.sendCommand('HATCH');
     await new Promise(r => setTimeout(r, 200));  // the board answers with EVT:onboard=hatching
   }
-  // onboard: {onboard: true} plays the first-boot welcome again (egg, QR, hatch, tour)
-  if (changes && changes.onboard === true && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
-    await esp32SerialManager.sendCommand('ONBOARD');
-    await new Promise(r => setTimeout(r, 200));
+  // factoryReset: {factoryReset: true} like new: Lv 1, no name, white coat, all gear on,
+  // and the cat back in its egg (first-boot welcome: intro, QR, hatch, tour)
+  if (changes && changes.factoryReset === true && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
+    settingsManager.updateSettings({ catName: '', coat: 'white', style: 'hd', wear: 31 });
+    await esp32SerialManager.sendCommand(boardSettings.setLine(settingsManager.getAllSettings()));
+    await esp32SerialManager.sendCommand('FACTORY_RESET');
+    await new Promise(r => setTimeout(r, 300));  // the board answers EVT:level=1 + EVT:onboard=waiting
   }
   // resetProgress: {resetProgress: true} puts the cat back to Lv 1 (the page asks first)
   if (changes && changes.resetProgress === true && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {

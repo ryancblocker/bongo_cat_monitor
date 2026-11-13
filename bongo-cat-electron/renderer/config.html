@@ -160,10 +160,17 @@ dialog .row2 .go{margin-top:0}
       <div class="lbl">PROGRESS <span id="progLv">LV 1</span></div>
       <button class="go danger" id="resetBtn">RESET PROGRESS</button>
       <div class="hint">STARTS YOUR CAT OVER AT LV 1. ITS GEAR LOCKS AGAIN.</div>
-      <button class="go danger" id="welcomeAgain">PLAY WELCOME AGAIN</button>
-      <div class="hint">THE CAT GOES BACK IN ITS EGG: INTRO, QR CODE, HATCHING AND THE TOUR, LIKE THE FIRST TIME. HANDY BEFORE GIVING IT AS A GIFT.</div>
+      <button class="go danger" id="factoryBtn">FACTORY RESET</button>
+      <div class="hint">LIKE NEW: LV 1, NO NAME, AND THE CAT GOES BACK IN ITS EGG (INTRO, QR CODE, HATCHING, TOUR). DO THIS BEFORE GIVING IT AS A GIFT.</div>
     </div>
   </section>
+  <dialog id="factoryDlg">
+    <div class="box">
+      <div class="lbl">FACTORY RESET?</div>
+      <div class="hint" style="margin-top:0">YOUR CAT GOES BACK IN ITS EGG: LEVEL, NAME AND GEAR ARE GONE AND THE WELCOME PLAYS AGAIN. THIS CAN'T BE UNDONE.</div>
+      <div class="row2"><button class="go" id="factoryNo">KEEP IT</button><button class="go danger" id="factoryYes">RESET</button></div>
+    </div>
+  </dialog>
   <dialog id="resetDlg">
     <div class="box">
       <div class="lbl" id="resetQ">RESET TO LV 1?</div>
@@ -303,7 +310,7 @@ function apply(state) {
   fAt = Date.now();
   $('focusStart').disabled = !st.connected;
   $('resetBtn').disabled = !st.connected;
-  $('welcomeAgain').disabled = !st.connected;
+  $('factoryBtn').disabled = !st.connected;
   render();
 }
 
@@ -448,10 +455,14 @@ $('hatchBtn').onclick = async () => {
   await save({ hatch: true }, true);
   setTimeout(load, 1500);
 };
-$('welcomeAgain').onclick = async () => {
-  if (!confirm('Put the cat back in its egg and play the welcome again?')) return;
-  await save({ onboard: true }, true);
+$('factoryBtn').onclick = () => $('factoryDlg').showModal();
+$('factoryNo').onclick = () => $('factoryDlg').close();
+$('factoryYes').onclick = async () => {
+  $('factoryDlg').close();
+  await save({ factoryReset: true }, true);
   await load();
+  toast(onboard === 'waiting' ? 'BACK IN THE EGG!' : "CAN'T REACH CAT", onboard !== 'waiting');
+  window.scrollTo(0, 0);
 };
 $('welcomeName').onkeydown = e => { if (e.key === 'Enter') $('welcomeName').blur(); };
 

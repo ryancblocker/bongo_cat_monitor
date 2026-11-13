@@ -10,7 +10,7 @@
 //   DEMO  tour of every screen and animation (DEMO:0 or a tap stops it)
 //   RESET_PROGRESS  level back to 1
 //   HATCH  (first boot) the phone page picked the cat: hatch the egg   ONBOARD  replay the
-//   first-boot onboarding   ONBOARD:0  skip it. Board -> PC: EVT:onboard=waiting|hatching|tour|done
+//   first-boot onboarding   ONBOARD:0  skip it   FACTORY_RESET  Lv 1 + back in the egg. Board -> PC: EVT:onboard=waiting|hatching|tour|done
 //   LEVELUP  preview a normal level-up   EVOLVE[:level]  preview an evolution   LEVEL:n  try a level (not saved)
 //   SPEED:<ms>  STOP  IDLE_START  STREAK_ON  STREAK_OFF  HEARTBEAT  PING  SHOT  DBG  UI:settings
 // board -> PC:
@@ -322,6 +322,21 @@ static void handleLine(String line) {
     return;
   }
   if (line == "ONBOARD") return startOnboarding(now);  // replay the first-boot onboarding (saved)
+  if (line == "FACTORY_RESET") {  // like new: Lv 1, everything worn, back in the egg
+    demoStop();
+    if (focus.active) {
+      focus.active = false;
+      Serial.println("EVT:focus=stop");
+    }
+    levelUp.cancel();
+    catLevel = 1;
+    saveLevel();
+    settings.wear = 31;
+    settings.name[0] = 0;
+    saveSettingsSoon();
+    Serial.printf("EVT:level=%d\n", catLevel);
+    return startOnboarding(now);
+  }
   if (line == "ONBOARD:0") {                          // skip it
     if (onb.phase != Onboarding::OFF) finishOnboarding(now);
     return;
