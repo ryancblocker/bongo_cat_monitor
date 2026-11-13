@@ -57,6 +57,11 @@ input[type=text]:focus{box-shadow:0 0 0 3px var(--gold)}
 .tile .lock{display:block;color:var(--sub)}
 .tile .mystery{display:grid;place-items:center;background:var(--ink);color:#687088;font-size:20px;margin-bottom:4px;aspect-ratio:256/200;border:2px solid var(--ink)}
 .tile [hidden]{display:none!important}
+/* first boot: only the welcome step (and the preview) until the egg hatches */
+body.onb main>:not(.top):not(#welcome){display:none}  /* the cat stays a surprise */
+#welcome[hidden]{display:none}
+.big{font-size:14px;line-height:22px;margin:0 0 8px}
+.go.hatch{height:56px;font-size:13px}
 .go.danger{background:#fff;color:var(--red)}
 dialog{border:0;padding:0;background:none;max-width:340px;width:calc(100% - 32px)}
 dialog::backdrop{background:rgba(16,20,32,.7)}
@@ -91,6 +96,27 @@ dialog .row2 .go{margin-top:0}
   <div class="screen" aria-label="Preview of your cat">
     <div class="in"><div class="stack" id="pv"></div><div class="plate" id="plate"></div></div>
   </div>
+
+  <!-- ================= FIRST BOOT: pick the cat that hatches ================= -->
+  <section id="welcome" hidden>
+    <div class="box mt" id="wPick">
+      <p class="big">WELCOME!</p>
+      <div class="hint" style="margin-top:0">THERE'S AN EGG ON YOUR DESK. NAME YOUR CAT AND PICK ITS COAT, THEN WATCH IT HATCH!</div>
+    </div>
+    <div class="box" id="wName">
+      <div class="lbl"><label for="welcomeName">NAME</label></div>
+      <input type="text" id="welcomeName" maxlength="16" placeholder="MOCHI" autocomplete="off" autocapitalize="characters">
+    </div>
+    <div class="box" id="wCoat">
+      <div class="lbl">COAT</div>
+      <div class="tiles" id="welcomeCoat"></div>
+      <button class="go hatch" id="hatchBtn">&#9654; THAT'S MY CAT!</button>
+    </div>
+    <div class="box mt" id="wLook" hidden>
+      <p class="big" id="wLookT">LOOK AT YOUR DESK!</p>
+      <div class="hint" style="margin-top:0" id="wLookS">YOUR EGG IS HATCHING ON THE SCREEN.</div>
+    </div>
+  </section>
 
   <div class="box mt" id="focusBox">
     <div class="lbl">FOCUS <span id="lvl">LV 1</span></div>
@@ -134,6 +160,8 @@ dialog .row2 .go{margin-top:0}
       <div class="lbl">PROGRESS <span id="progLv">LV 1</span></div>
       <button class="go danger" id="resetBtn">RESET PROGRESS</button>
       <div class="hint">STARTS YOUR CAT OVER AT LV 1. ITS GEAR LOCKS AGAIN.</div>
+      <button class="go danger" id="welcomeAgain">PLAY WELCOME AGAIN</button>
+      <div class="hint">THE CAT GOES BACK IN ITS EGG: INTRO, QR CODE, HATCHING AND THE TOUR, LIKE THE FIRST TIME. HANDY BEFORE GIVING IT AS A GIFT.</div>
     </div>
   </section>
   <dialog id="resetDlg">
@@ -268,10 +296,14 @@ function apply(state) {
   $('loginRow').style.display = st.platform === 'win32' ? '' : 'none';
   if (st.platform !== 'win32') $('cpuHint').textContent = 'WHEN THE COMPUTER REPORTS IT';
   level = st.level || 1;
+  onboard = st.onboard || null;
+  if (onboard !== 'waiting') hatchSent = false;
+  $('hatchBtn').disabled = !st.connected;
   F = st.focus || F;
   fAt = Date.now();
   $('focusStart').disabled = !st.connected;
   $('resetBtn').disabled = !st.connected;
+  $('welcomeAgain').disabled = !st.connected;
   render();
 }
 
@@ -281,6 +313,33 @@ function seg(id, value) {
 function sw(id, on) {
   $(id).setAttribute('aria-pressed', on !== false);
   $(id).textContent = on !== false ? 'ON' : 'OFF';
+}
+
+let onboard = null, hatchSent = false;
+function renderWelcome() {
+  const on = onboard === 'waiting' || onboard === 'hatching' || onboard === 'tour';
+  document.body.classList.toggle('onb', on);
+  $('welcome').hidden = !on;
+  if (!on) return;
+  const pick = onboard === 'waiting' && !hatchSent;
+  for (const id of ['wPick', 'wName', 'wCoat']) $(id).hidden = !pick;
+  $('wLook').hidden = pick;
+  $('wLookT').textContent = onboard === 'tour' ? 'SAY HI!' : 'LOOK AT YOUR DESK!';
+  $('wLookS').textContent = onboard === 'tour'
+    ? 'YOUR CAT IS SHOWING YOU AROUND. TAP ITS SCREEN TO GO ON. THIS PAGE OPENS WHEN THE TOUR ENDS.'
+    : 'YOUR EGG IS HATCHING ON THE SCREEN!';
+  const box = $('welcomeCoat');
+  if (!box.children.length) {
+    for (const [v, label] of [...COATS, ['8bit', '8-BIT']]) {
+      const b = document.createElement('button');
+      b.className = 'tile';
+      b.dataset.v = v;
+      b.innerHTML = `<img alt="" src="${v === '8bit' ? img('8bit') : img('hd', v)}"><span>${label}</span>`;
+      b.onclick = () => save(v === '8bit' ? { style: '8bit' } : { coat: v, style: 'hd' }, true);
+      box.appendChild(b);
+    }
+  }
+  for (const b of box.children) b.setAttribute('aria-pressed', S.style === '8bit' ? b.dataset.v === '8bit' : b.dataset.v === S.coat);
 }
 
 function render() {
@@ -335,6 +394,7 @@ function render() {
   }
   $('wearLv').textContent = WEAR.filter(w => level >= w[2]).length + '/' + WEAR.length;
   $('progLv').textContent = 'LV ' + level;
+  renderWelcome();
   $('resetQ').textContent = 'RESET ' + (S.catName ? S.catName.toUpperCase() : 'YOUR CAT') + ' TO LV 1?';
   if (document.activeElement !== $('catName')) $('catName').value = S.catName || '';
   if (document.activeElement !== $('weatherLocation')) $('weatherLocation').value = S.weatherLocation || '';
@@ -378,6 +438,23 @@ for (const id of ['timeFormat', 'tempUnit']) for (const b of $(id).children) b.o
 $('focusStart').onclick = () => save({ focus: S.focusMin || 25 });
 // cancelling gives no EXP (and the cat gets sad), so STOP asks once
 let stopAsk = 0;
+// first boot: name + coat, then the egg hatches on the board
+$('hatchBtn').onclick = async () => {
+  const name = $('welcomeName').value.trim();
+  if (!name) { $('welcomeName').focus(); return toast('NAME YOUR CAT!', true); }
+  await save({ catName: name }, true);
+  hatchSent = true;
+  render();
+  await save({ hatch: true }, true);
+  setTimeout(load, 1500);
+};
+$('welcomeAgain').onclick = async () => {
+  if (!confirm('Put the cat back in its egg and play the welcome again?')) return;
+  await save({ onboard: true }, true);
+  await load();
+};
+$('welcomeName').onkeydown = e => { if (e.key === 'Enter') $('welcomeName').blur(); };
+
 // reset progress: asks in a dialog first
 $('resetBtn').onclick = () => $('resetDlg').showModal();
 $('resetNo').onclick = () => $('resetDlg').close();
@@ -431,7 +508,8 @@ async function load() {
   }
 }
 load();
-setInterval(load, 10000);
+let tick = 0;  // every 10 s, every 2 s during the first-boot welcome (to notice the hatch / tour end)
+setInterval(() => { if (onboard || ++tick % 5 === 0) load(); }, 2000);
 </script>
 </body>
 </html>

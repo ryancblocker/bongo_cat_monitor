@@ -9,6 +9,8 @@
 //   FOCUS:<minutes>  start a focus session (FOCUS:0 stops it)
 //   DEMO  tour of every screen and animation (DEMO:0 or a tap stops it)
 //   RESET_PROGRESS  level back to 1
+//   HATCH  (first boot) the phone page picked the cat: hatch the egg   ONBOARD  replay the
+//   first-boot onboarding   ONBOARD:0  skip it. Board -> PC: EVT:onboard=waiting|hatching|tour|done
 //   LEVELUP  preview a normal level-up   EVOLVE[:level]  preview an evolution   LEVEL:n  try a level (not saved)
 //   SPEED:<ms>  STOP  IDLE_START  STREAK_ON  STREAK_OFF  HEARTBEAT  PING  SHOT  DBG  UI:settings
 // board -> PC:
@@ -20,6 +22,7 @@
 
 #include "cat_anim.h"
 #include "levelup_fx.h"
+#include "onboarding.h"
 #include "render.h"
 #include "state.h"
 #include "ui.h"
@@ -47,6 +50,8 @@ static bool settingsDirty = true, shotPending = false;
 static uint32_t saveAt = 0, cardSince = 0, settingsSince = 0;
 static float frameMs = 0;  // smoothed render time
 static LevelUpFx levelUp;
+static Onboarding onb;            // first-boot intro, egg hatch and tour
+static bool onboarded = true;      // NVS "onb": the first-boot onboarding was finished
 static bool levelUpReal = false;  // false = demo/preview: don't show the "grew to" box after
 
 // ------------------------------------------------------------------ demo tour
@@ -169,8 +174,36 @@ static void loadSettings() {
   p.begin("bongo", true);
   if (p.getUInt("ver", 0) == SETTINGS_VER && p.getBytesLength("s") == sizeof(Settings)) p.getBytes("s", &settings, sizeof(Settings));
   catLevel = max<uint16_t>(1, p.getUShort("lvl", 1));
+  onboarded = p.getBool("onb", false);
   p.end();
   settings.name[sizeof(settings.name) - 1] = 0;
+}
+
+static void saveOnboarded() {
+  Preferences p;
+  p.begin("bongo", false);
+  p.putBool("onb", onboarded);
+  p.end();
+}
+
+static void startOnboarding(uint32_t now) {
+  onboarded = false;
+  saveOnboarded();
+  onb.begin(now);
+  Serial.println("EVT:onboard=waiting");
+}
+
+static int enabledCards(int out[3]);
+static void finishOnboarding(uint32_t now) {
+  onb.phase = Onboarding::OFF;
+  onboarded = true;
+  saveOnboarded();
+  int ids[3];
+  if (enabledCards(ids) > 0) view.card = ids[0];
+  view.next = -1;
+  cardSince = now;
+  cat.poke(now);
+  Serial.println("EVT:onboard=done");
 }
 
 static void saveLevel() {
@@ -268,6 +301,7 @@ static void handleSet(const String& s) {
   saveSettingsSoon();
   settingsDirty = true;
   Serial.printf("EVT:level=%d\n", catLevel);  // lets the app show the level after it syncs
+  if (onb.phase == Onboarding::INTRO || onb.phase == Onboarding::WAIT) Serial.println("EVT:onboard=waiting");
 }
 
 static void handleLine(String line) {
@@ -277,6 +311,21 @@ static void handleLine(String line) {
   lastPcMsg = now;
   bool typingCmd = line.startsWith("SPEED:") || line == "STOP" || line.startsWith("IDLE") || line.startsWith("STREAK");
   if (demo.on && typingCmd) return;  // the demo script drives the cat
+  if (onb.phase != Onboarding::OFF &&  // nothing jumps ahead of the first-boot onboarding
+      (line.startsWith("DEMO") || line.startsWith("FOCUS:") || line == "LEVELUP" || line.startsWith("EVOLVE"))) return;
+  if (line == "HATCH") {  // phone page: the owner picked a name and coat
+    if (onb.hatch(now)) Serial.println("EVT:onboard=hatching");
+    return;
+  }
+  if (line == "TAP" && onb.phase != Onboarding::OFF) {  // test: same as tapping the screen
+    if (onb.tap(now)) finishOnboarding(now);
+    return;
+  }
+  if (line == "ONBOARD") return startOnboarding(now);  // replay the first-boot onboarding (saved)
+  if (line == "ONBOARD:0") {                          // skip it
+    if (onb.phase != Onboarding::OFF) finishOnboarding(now);
+    return;
+  }
   if (line.startsWith("FOCUS:")) demoStop();
   if (line.startsWith("SPEED:")) cat.typing(line.substring(6).toInt(), now);
   else if (line == "STOP") cat.stop(now);
@@ -447,6 +496,10 @@ static void handleTouch(uint32_t now) {
   }
   if (!t && down) {  // release = tap
     down = false;
+    if (onb.phase != Onboarding::OFF) {
+      if (onb.tap(now)) finishOnboarding(now);
+      return;
+    }
     if (demo.on) {
       demoStop();
       return;
@@ -505,6 +558,10 @@ void setup() {
   Serial.println("HELLO:bongo2");
   Serial.printf("EVT:level=%d\n", catLevel);
   cardSince = millis();
+  if (!onboarded) {  // brand new: intro, QR code, hatch, tour
+    onb.begin(millis());
+    Serial.println("EVT:onboard=waiting");
+  }
 }
 
 void loop() {
@@ -520,6 +577,24 @@ void loop() {
   }
 
   demoTick(now);
+  if (onb.phase != Onboarding::OFF) {
+    if (onb.update(now)) {  // hatched: on to the tour
+      cat.celebrate(now);
+      Serial.println("EVT:onboard=tour");
+    }
+    screen = Screen::Main;
+    if (onb.fullScreen()) {
+      static uint32_t lastOnb = 0;
+      if (onb.animating(now) || shotPending || now - lastOnb > 1000) {
+        const CatImg* const* L = CAT_TABLE[settings.style % 2][settings.coat % COAT_COUNT];
+        rnd.frame([&](Frame& f) { onb.draw(f, now, L, settings.name, configUrl); }, shotPending);
+        shotPending = false;
+        lastOnb = now;
+      }
+      delay(5);
+      return;
+    }
+  }
   if (screen == Screen::Settings) {
     if (demo.on) settingsSince = now;
     if (now - settingsSince > 60000) screen = Screen::Main;  // back to the cat after a minute
@@ -544,6 +619,12 @@ void loop() {
   bool known = false;
   for (int i = 0; i < n; i++) known |= ids[i] == view.card;
   if (n > 0 && !known) view.card = ids[0], view.next = -1;  // its card was switched off
+  if (onb.phase == Onboarding::TOUR) {  // the tour picks the card it talks about
+    int w = onb.wantCard();
+    for (int i = 0; i < n; i++)
+      if (ids[i] == w) view.card = w, view.next = -1;
+    cardSince = now;
+  }
   if (n > 1 && view.next < 0 && now - cardSince > settings.cycle * 1000UL) advanceCard();
   if (view.next >= 0) {
     view.slide += dt / 0.45f;
@@ -581,6 +662,7 @@ void loop() {
       drawMain(f, fx, cat, view);
       if (overlay) levelUp.drawOverlay(f, now, settings.name);  // "MOCHI GREW TO LV 4!"
       else if (demo.on) drawCaption(f, STEPS[demo.step].caption, now);
+      onb.drawTour(f, now, settings.name);  // first-boot tour (spotlight + text box)
     }, shotPending);
   }
   if (!shotPending) frameMs = frameMs * 0.9f + (micros() - t0) / 1000.0f * 0.1f;

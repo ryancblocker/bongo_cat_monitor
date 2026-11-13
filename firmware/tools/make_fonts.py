@@ -21,7 +21,7 @@ PIXEL = ASCII + ["°", "♥", "▼", "▶", "◀", "·", "…"]
 FONTS = [
     ("PX8", "PressStart2P-Regular.ttf", 8, PIXEL),
     ("PX16", "PressStart2P-Regular.ttf", 16, PIXEL),
-    ("PX32", "PressStart2P-Regular.ttf", 32, list(" LEVUP!0123456789")),  # level-up title
+    ("PX32", "PressStart2P-Regular.ttf", 32, list(" LEVUP!?0123456789BONGCAT")),  # level-up + intro titles
 ]
 
 

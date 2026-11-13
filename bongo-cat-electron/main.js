@@ -32,6 +32,7 @@ let lastSystemStats = { cpu: 0, memory: 0 };
 let lastTypingStats = { wpm: 0, isActive: false };
 let focusState = { active: false, endsAt: 0, min: 0 };  // mirrored from the board's EVT:focus lines
 let demoRunning = false;  // board's EVT:demo=start / end
+let onboardState = null;  // first boot on the board: 'waiting' (egg + QR), 'hatching', 'tour', 'done'
 
 // Auto-connect state
 let connecting = false;
@@ -274,6 +275,9 @@ function setupEventForwarding() {
     if (/^EVT:focus=(stop|done)/.test(data)) focusState = { active: false, endsAt: 0, min: 0 };
     if (/^EVT:demo=start/.test(data)) demoRunning = true;
     if (/^EVT:demo=end/.test(data) || /^HELLO:/.test(data)) demoRunning = false;
+    const ob = /^EVT:onboard=(\w+)/.exec(data);
+    if (ob) onboardState = ob[1];
+    if (/^HELLO:/.test(data)) onboardState = null;  // rebooted: it says again if it's still new
   });
 }
 
@@ -318,6 +322,7 @@ function configState() {
       platform: process.platform,
       level: settingsManager.get('catLevel', 1),
       demo: demoRunning,
+      onboard: onboardState,
       focus: { active: focusState.active, leftSec: focusState.active ? Math.max(0, Math.round((focusState.endsAt - Date.now()) / 1000)) : 0, min: focusState.min },
     },
   };
@@ -328,6 +333,16 @@ async function applyChanges(changes) {
   if (changes && 'demo' in changes && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
     await esp32SerialManager.sendCommand(changes.demo ? 'DEMO' : 'DEMO:0');
     await new Promise(r => setTimeout(r, 150));
+  }
+  // hatch: {hatch: true} the welcome page picked the cat: the egg on the board hatches
+  if (changes && changes.hatch === true && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
+    await esp32SerialManager.sendCommand('HATCH');
+    await new Promise(r => setTimeout(r, 200));  // the board answers with EVT:onboard=hatching
+  }
+  // onboard: {onboard: true} plays the first-boot welcome again (egg, QR, hatch, tour)
+  if (changes && changes.onboard === true && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
+    await esp32SerialManager.sendCommand('ONBOARD');
+    await new Promise(r => setTimeout(r, 200));
   }
   // resetProgress: {resetProgress: true} puts the cat back to Lv 1 (the page asks first)
   if (changes && changes.resetProgress === true && esp32SerialManager && esp32SerialManager.getConnectionStatus().isConnected) {
