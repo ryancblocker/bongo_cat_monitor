@@ -166,11 +166,6 @@ dialog .row2 .go{margin-top:0}
       </div>
     </div>
     <div class="box">
-      <div class="lbl">DEMO</div>
-      <button class="go" id="demoBtn">&#9654; PLAY DEMO</button>
-      <div class="hint">A 1-MINUTE TOUR OF EVERY SCREEN AND ANIMATION, LEVEL UP INCLUDED. YOUR SETTINGS AND LEVEL DON'T CHANGE. TAP THE CAT'S SCREEN TO STOP.</div>
-    </div>
-    <div class="box">
       <div class="lbl">CLOCK</div>
       <div class="seg" style="grid-template-columns:1fr 1fr" id="timeFormat"><button data-v="12">12H</button><button data-v="24">24H</button></div>
     </div>
@@ -206,7 +201,7 @@ dialog .row2 .go{margin-top:0}
 const COATS = [['white', 'WHITE'], ['black', 'BLACK'], ['grey', 'GREY'], ['orange', 'TABBY'],
                ['calico', 'CALICO'], ['tuxedo', 'TUXEDO'], ['siamese', 'SIAMESE'], ['cream', 'CREAM']];
 let S = {};
-let F = { active: false, leftSec: 0, min: 0 }, fAt = 0, level = 1, demoOn = false;
+let F = { active: false, leftSec: 0, min: 0 }, fAt = 0, level = 1;
 const $ = id => document.getElementById(id);
 const img = (style, coat) => style === '8bit' ? 'cats/8bit.png' : `cats/hd_${coat}.png`;
 // wardrobe: [key, bit, unlock level, label]
@@ -277,10 +272,6 @@ function apply(state) {
   fAt = Date.now();
   $('focusStart').disabled = !st.connected;
   $('resetBtn').disabled = !st.connected;
-  demoOn = !!st.demo;
-  $('demoBtn').disabled = !st.connected;
-  $('demoBtn').textContent = demoOn ? 'STOP DEMO' : '\u25B6 PLAY DEMO';
-  $('demoBtn').className = 'go' + (demoOn ? ' stop' : '');
   render();
 }
 
@@ -385,11 +376,6 @@ for (const t of document.querySelectorAll('[role=tab]')) {
 }
 for (const id of ['timeFormat', 'tempUnit']) for (const b of $(id).children) b.onclick = () => save({ [id]: b.dataset.v });
 $('focusStart').onclick = () => save({ focus: S.focusMin || 25 });
-$('demoBtn').onclick = async () => {
-  await save({ demo: !demoOn }, true);
-  toast(demoOn ? 'DEMO PLAYING!' : 'DEMO STOPPED');
-  if (demoOn) setTimeout(load, 63000);  // the tour ends by itself after about a minute
-};
 // cancelling gives no EXP (and the cat gets sad), so STOP asks once
 let stopAsk = 0;
 // reset progress: asks in a dialog first
