@@ -80,6 +80,7 @@ dialog .row2 .go{margin-top:0}
 #toast{position:fixed;left:50%;bottom:16px;transform:translate(-50%,120px);transition:transform .2s steps(4);z-index:9;font-size:10px;padding:10px 14px;white-space:nowrap}
 #toast.show{transform:translate(-50%,0)}
 .err{color:var(--red)}
+.ver{text-align:center;font-size:8px;color:#98b0d0;margin:16px 0 0}
 .go{width:100%;height:46px;margin-top:10px;border:3px solid var(--ink);border-radius:4px;background:var(--gold);font-size:12px;cursor:pointer}
 .go.stop{background:#fff;color:var(--red)}
 .clock{font-size:28px;line-height:40px;text-align:center;margin:4px 0 0}
@@ -237,6 +238,7 @@ dialog .row2 .go{margin-top:0}
   </section>
 </main>
 <div id="toast" class="box" role="status" aria-live="polite"></div>
+<p class="ver" id="ver"></p>
 
 <script>
 const COATS = [['white', 'WHITE'], ['black', 'BLACK'], ['grey', 'GREY'], ['orange', 'TABBY'],
@@ -309,6 +311,7 @@ function apply(state) {
   $('loginRow').style.display = st.platform === 'win32' ? '' : 'none';
   if (st.platform !== 'win32') $('cpuHint').textContent = 'WHEN THE COMPUTER REPORTS IT';
   level = st.level || 1;
+  $('ver').textContent = st.version ? 'APP VERSION ' + st.version : '';
   $('kbWarn').hidden = !st.keyboardError;
   $('kbWhy').textContent = (st.keyboardError || '').toUpperCase();
   onboard = st.onboard || null;
