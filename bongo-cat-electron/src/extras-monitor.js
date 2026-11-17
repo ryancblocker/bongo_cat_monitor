@@ -1,6 +1,37 @@
 const { execFile } = require('child_process');
 const si = require('systeminformation');
 
+// Internet requests go through Electron's net.fetch (Chromium's network stack: the Windows proxy
+// settings, certificate store and antivirus HTTPS scanning all work like in a browser), with
+// Node's own fetch as a fallback. Node's fetch alone fails with a bare "fetch failed" on some
+// Windows PCs where the browser works fine.
+let electronNet = null;
+try { electronNet = require('electron').net; } catch (e) { /* not running under Electron (tests) */ }
+
+function why(err) {
+    const c = err && err.cause;
+    if (err && err.name === 'TimeoutError') return 'timed out';
+    return c ? (c.code || c.message || String(c)) : (err && err.message) || String(err);
+}
+
+async function webFetch(url, ms = 15000) {
+    const tries = [];
+    if (electronNet && typeof electronNet.fetch === 'function') tries.push(['browser', u => electronNet.fetch(u, { signal: AbortSignal.timeout(ms) })]);
+    tries.push(['node', u => fetch(u, { signal: AbortSignal.timeout(ms) })]);
+    const errors = [];
+    for (const [name, get] of tries) {
+        try {
+            return await get(url);
+        } catch (err) {
+            errors.push(`${name}: ${why(err)}`);
+        }
+    }
+    const host = new URL(url).host;
+    const e = new Error(`can't reach ${host} (${errors.join('; ')})`);
+    console.error('Network:', e.message);
+    throw e;
+}
+
 /**
  * Extras for the Ross edition: CPU temperature, GPU load + temperature,
  * date and weather. Produces the serial lines the firmware understands:
@@ -202,7 +233,7 @@ class ExtrasMonitor {
         const q = (query || '').trim();
         if (!q) return null;
         if (/^\d{5}$/.test(q)) {
-            const res = await fetch(`https://api.zippopotam.us/us/${q}`, { signal: AbortSignal.timeout(15000) });
+            const res = await webFetch(`https://api.zippopotam.us/us/${q}`);
             if (!res.ok) throw new Error(`ZIP ${q} not found`);
             const data = await res.json();
             const p = data.places && data.places[0];
@@ -211,8 +242,7 @@ class ExtrasMonitor {
         }
         // "City" or "City, ST" / "City, State" / "City, Country"
         const [city, region] = q.split(',').map(s => s.trim());
-        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&name=${encodeURIComponent(city)}`,
-            { signal: AbortSignal.timeout(15000) });
+        const res = await webFetch(`https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&name=${encodeURIComponent(city)}`);
         const data = await res.json();
         let results = data.results || [];
         if (region) {
@@ -242,7 +272,7 @@ class ExtrasMonitor {
                 `&current=temperature_2m,weather_code,is_day,wind_speed_10m,relative_humidity_2m` +
                 `&daily=temperature_2m_max,temperature_2m_min&forecast_days=1` +
                 `&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto`;
-            const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+            const res = await webFetch(url);
             if (!res.ok) throw new Error(`weather service returned ${res.status}`);
             const data = await res.json();
             const cur = data.current, daily = data.daily || {};

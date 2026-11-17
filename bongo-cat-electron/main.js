@@ -322,6 +322,7 @@ function configState() {
       platform: process.platform,
       level: settingsManager.get('catLevel', 1),
       demo: demoRunning,
+      keyboardError: keyboardMonitor ? keyboardMonitor.keyboardError : '',
       onboard: onboardState,
       focus: { active: focusState.active, leftSec: focusState.active ? Math.max(0, Math.round((focusState.endsAt - Date.now()) / 1000)) : 0, min: focusState.min },
     },

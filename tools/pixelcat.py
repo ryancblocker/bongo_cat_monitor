@@ -259,20 +259,42 @@ def extend_behind_desk(p, c):
             p[x, y] = line
 
 
+def ink_for(coat, x, y):
+    """colour for a face line (mouth, closed eyes, brows) at x, y: light over dark fur (black
+    cat, the tuxedo's black head, the siamese mask), the coat's dark line over light fur"""
+    r, g, b = fur_color(coat, x, y, G["body"])
+    return C("D7D7E2") if 0.299 * r + 0.587 * g + 0.114 * b < 90 else C(COAT[coat]["line"])
+
+
+def reink(im, coat):
+    """recolour every face-line pixel (either line colour) to suit the fur under it"""
+    p = im.load()
+    lines = {C("D7D7E2"), C(COAT[coat]["line"])}
+    for y in range(N):
+        for x in range(N):
+            if p[x, y][3] == 255 and p[x, y][:3] in lines:
+                p[x, y] = ink_for(coat, x, y) + (255,)
+    return im
+
+
 def paint_face(name, coat, look=0):
     """eyes with iris + shine, mouth, blush. look = -1/+1 shifts the eyes."""
     grid = G[name]
     c = COAT[coat]
     iris, glint = EYES[c["eyes"]]
-    mouth_col = "D7D7E2" if coat in ("black", "siamese") else c["line"]  # light mouth on dark fur
     im = Image.new("RGBA", (N, N))
     p = im.load()
-    eyes = [b for b in blobs(grid, "line") if len(b) >= 30]
+    # the eyes are the outline blobs sitting on the eye centres (by position, not size: the
+    # happy face's open mouth is as big as an eye and used to get painted in the eye colour)
+    def near_eye(b):
+        cx = sum(q[0] for q in b) / len(b); cy = sum(q[1] for q in b) / len(b)
+        return len(b) >= 30 and any(abs(cx - ex) < 6 and abs(cy - ey) < 6 for ex, ey in (EYE_L, EYE_R))
+    eyes = [b for b in blobs(grid, "line") if near_eye(b)]
     eye_px = set(q for b in eyes for q in b)
     for y in range(N):
         for x in range(N):
             if grid[y][x] == "line" and (x, y) not in eye_px:
-                p[x, y] = C(mouth_col) + (255,)
+                p[x, y] = ink_for(coat, x, y) + (255,)
             elif grid[y][x] == "pink":
                 p[x, y] = PINK + (255,)
     for b in eyes:
@@ -325,7 +347,7 @@ def paint_yawn(coat, wide):
     if wide:  # tongue
         d.line([(cx - 2, cy + ry - 2), (cx + 2, cy + ry - 2)], fill=PINK + (255,))
         d.point([(cx - 1, cy + ry - 3), (cx, cy + ry - 3), (cx + 1, cy + ry - 3)], fill=PINK + (255,))
-    return im
+    return reink(im, coat)
 
 
 def paint_sad(coat):
@@ -357,7 +379,7 @@ def paint_sad(coat):
     for (x, y) in ((tx, ty), (tx, ty + 1), (tx - 1, ty + 2), (tx, ty + 2), (tx + 1, ty + 2), (tx, ty + 3)):
         p[x, y] = C("58A0F0") + (255,)
     p[tx, ty + 2] = C("B8E0FF") + (255,)
-    return im
+    return reink(im, coat)
 
 
 # ------------------------------------------------------------------ desk + keyboard

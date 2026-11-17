@@ -93,6 +93,12 @@ dialog .row2 .go{margin-top:0}
     <span class="st" id="conn"><i></i><span>...</span></span>
   </div>
 
+  <div class="box mt err" id="kbWarn" hidden>
+    <div class="lbl">TYPING NOT DETECTED</div>
+    <div class="hint" style="margin-top:0;color:var(--red)" id="kbWhy"></div>
+    <div class="hint">ON THE PC: WINDOWS SECURITY &gt; VIRUS &amp; THREAT PROTECTION &gt; PROTECTION HISTORY. ALLOW OR RESTORE WINKEYSERVER.EXE. IT STARTS WORKING WITHIN 30 SECONDS.</div>
+  </div>
+
   <div class="screen" aria-label="Preview of your cat">
     <div class="in"><div class="stack" id="pv"></div><div class="plate" id="plate"></div></div>
   </div>
@@ -303,6 +309,8 @@ function apply(state) {
   $('loginRow').style.display = st.platform === 'win32' ? '' : 'none';
   if (st.platform !== 'win32') $('cpuHint').textContent = 'WHEN THE COMPUTER REPORTS IT';
   level = st.level || 1;
+  $('kbWarn').hidden = !st.keyboardError;
+  $('kbWhy').textContent = (st.keyboardError || '').toUpperCase();
   onboard = st.onboard || null;
   if (onboard !== 'waiting') hatchSent = false;
   $('hatchBtn').disabled = !st.connected;

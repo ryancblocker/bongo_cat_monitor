@@ -4,9 +4,9 @@
 #include "weather_fx.h"
 
 // layout (screen px, all on the 2 px grid)
-constexpr int HEADER_H = 22;
-constexpr int CARD_X = 6, CARD_Y = 28, CARD_W = 228, CARD_H = 86;
-constexpr int GEAR_X = 214, GEAR_Y = 3;  // top-left of the 16x16 gear
+constexpr int HEADER_H = 28;  // tall enough that the gear sits clear of the top edge
+constexpr int CARD_X = 6, CARD_Y = 32, CARD_W = 228, CARD_H = 84;
+constexpr int GEAR_X = 212, GEAR_Y = 6;  // top-left of the 16x16 gear
 // settings screen brightness row: [<] [##########] [>]
 constexpr int BR_Y = 268, BR_MINUS_X = 14, BR_BAR_X = 54, BR_BAR_W = 132, BR_PLUS_X = 196;
 

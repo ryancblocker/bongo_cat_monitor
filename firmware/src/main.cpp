@@ -526,7 +526,7 @@ static void handleTouch(uint32_t now) {
       return;
     }
     if (screen == Screen::Main) {
-      if (sx > GEAR_X - 14 && sy < HEADER_H + 10) {
+      if (sx > GEAR_X - 26 && sy < HEADER_H + 8) {  // generous: the gear is near the edge
         screen = Screen::Settings;
         settingsDirty = true;
         settingsSince = now;
@@ -561,15 +561,20 @@ static void handleTouch(uint32_t now) {
 }
 
 // ------------------------------------------------------------------ main
+static const uint8_t SCREEN_ROTATION = 2;  // 0 = USB port at the top, 2 = at the bottom (in the stand)
+
 void setup() {
   Serial.setRxBufferSize(2048);
   Serial.begin(115200);
   loadSettings();
   lcd.init();
-  lcd.setRotation(0);
+  lcd.setRotation(0);  // touch calibration runs (and is stored) in the panel's own orientation
   applyBrightness();
   rnd.begin();
   setupTouch();
+  // the board sits upside down in the stand: turn the picture 180°. LovyanGFX applies the
+  // rotation to touch too, so the stored calibration keeps working.
+  lcd.setRotation(SCREEN_ROTATION);
   Serial.println("HELLO:bongo2");
   Serial.printf("EVT:level=%d\n", catLevel);
   cardSince = millis();

@@ -362,14 +362,14 @@ void drawMain(Frame& f, WeatherFx& fx, const CatAnim& cat, const MainView& v) {
     f.fill(0, HEADER_H, SW, 2, c565(HDR_LINE));
     char buf[24];
     if (weather.valid) {
-      weatherIcon(f, skyFor(weather.code), weather.day, 12, 11, 8, HDR);
+      weatherIcon(f, skyFor(weather.code), weather.day, 12, HEADER_H / 2, 8, HDR);
       snprintf(buf, sizeof buf, "%d%s", weather.temp, DEG);
     } else {
       snprintf(buf, sizeof buf, "--%s", DEG);
     }
-    f.text(buf, 26, 11, PX8, 0xFFFFFF);
+    f.text(buf, 26, HEADER_H / 2, PX8, 0xFFFFFF);
     timeString(buf, sizeof buf);
-    f.text(buf, SW / 2 + 4, 11, PX8, 0xFFFFFF, AL_C);
+    f.text(buf, SW / 2 + 4, HEADER_H / 2, PX8, 0xFFFFFF, AL_C);
     f.bitmap(GEAR, 8, 8, GEAR_X + 2, GEAR_Y + 1, 2);
   }
   fx.drawFlash(f);

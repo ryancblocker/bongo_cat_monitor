@@ -34,6 +34,12 @@ class KeyboardMonitor {
         // Fallback mode flag
         this.fallbackMode = false;
 
+        // Why keystrokes aren't arriving ('' = fine). On Windows the listener runs a helper,
+        // WinKeyServer.exe; antivirus often quarantines it (it watches every key, like a
+        // keylogger), and that used to fail silently. Shown on the phone page.
+        this.keyboardError = '';
+        this.retryTimer = null;
+
         
         console.log('Keyboard Monitor initialized');
     }
@@ -54,22 +60,7 @@ class KeyboardMonitor {
             // Use global keyboard listener for real keystroke detection
     
             
-            try {
-                // Initialize the global keyboard listener
-                this.keyboardListener = new GlobalKeyboardListener();
-                
-                // Add event listener for key down events
-                this.keyboardListener.addListener((event, name) => {
-                    if (event.state === 'DOWN') {
-                        this.handleKeyPress({ name });
-                    }
-                });
-                
-
-                
-            } catch (error) {
-                this.handlePermissionError(error);
-            }
+            await this.startListener();
 
             // Set up key event handlers
             this.setupKeyEventHandlers();
@@ -97,6 +88,41 @@ class KeyboardMonitor {
     }
 
     /**
+     * Start (or restart) the global key listener. If the helper can't run or stops, remember why
+     * and try again every 30 s, so allowing it in antivirus fixes typing without a restart.
+     */
+    async startListener() {
+        clearTimeout(this.retryTimer);
+        const fail = (why) => {
+            this.keyboardError = why;
+            console.error('⌨️ Keyboard listener problem:', why);
+            try { if (this.keyboardListener) this.keyboardListener.kill(); } catch (e) { /* already gone */ }
+            this.keyboardListener = null;
+            clearTimeout(this.retryTimer);
+            this.retryTimer = setTimeout(() => this.startListener(), 30000);
+        };
+        try {
+            this.keyboardListener = new GlobalKeyboardListener({
+                windows: {
+                    onError: (code) => fail(`key helper (WinKeyServer.exe) stopped, code ${code}`),
+                    onInfo: (info) => console.log('Key helper:', String(info).trim()),
+                },
+                mac: { onError: (code) => fail(`key helper stopped, code ${code}`) },
+            });
+            await this.keyboardListener.addListener((event, name) => {
+                if (event.state === 'DOWN') {
+                    if (this.keyboardError) this.keyboardError = '';  // keys are arriving after all
+                    this.handleKeyPress({ name });
+                }
+            });
+            this.keyboardError = '';
+        } catch (error) {
+            const code = error && (error.code || error.errno);
+            fail(`can't start the key helper (WinKeyServer.exe): ${code || error.message}`);
+        }
+    }
+
+    /**
      * Stop keyboard monitoring
      */
     async stopMonitoring() {
@@ -108,6 +134,7 @@ class KeyboardMonitor {
 
             console.log('Stopping keyboard monitoring...');
 
+            clearTimeout(this.retryTimer);
             // Stop global keyboard listener
             if (this.keyboardListener && this.keyboardListener.kill) {
                 this.keyboardListener.kill();
