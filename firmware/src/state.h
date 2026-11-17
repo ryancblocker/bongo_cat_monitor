@@ -7,7 +7,7 @@ struct Settings {          // persisted in NVS ("bongo")
   uint8_t coat = 0;        // CatCoat: white, black, grey, orange, calico, tuxedo, siamese, cream
   char name[17] = "";      // shown on a tag above the cat ("" = hidden)
   uint8_t bright = 200;    // backlight 10..255
-  uint8_t cycle = 8;       // seconds per card (3..60)
+  uint8_t cycle = 8;       // seconds per card (3..60), 0 = off: cards only change on a tap
   uint8_t cards = 7;       // bit 0 weather card, bit 1 PC card, bit 2 focus card
   bool h24 = false;
   uint8_t sleepMin = 5;    // minutes without typing before the cat dozes off

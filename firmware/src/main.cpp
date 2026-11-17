@@ -292,7 +292,10 @@ static void handleSet(const String& s) {
     settings.bright = constrain(v.toInt(), 10, 255);
     applyBrightness();
   }
-  if ((v = field(s, "cycle")).length()) settings.cycle = constrain(v.toInt(), 3, 60);
+  if ((v = field(s, "cycle")).length()) {
+    int c = constrain(v.toInt(), 0, 60);
+    settings.cycle = c < 3 ? 0 : c;  // 0 = don't switch cards by themselves
+  }
   if ((v = field(s, "cards")).length()) settings.cards = constrain(v.toInt(), 0, 7);
   if ((v = field(s, "h24")).length()) settings.h24 = v.toInt() != 0;
   if ((v = field(s, "sleep")).length()) settings.sleepMin = constrain(v.toInt(), 1, 60);
@@ -645,7 +648,7 @@ void loop() {
       if (ids[i] == w) view.card = w, view.next = -1;
     cardSince = now;
   }
-  if (n > 1 && view.next < 0 && now - cardSince > settings.cycle * 1000UL) advanceCard();
+  if (n > 1 && settings.cycle && view.next < 0 && now - cardSince > settings.cycle * 1000UL) advanceCard();
   if (view.next >= 0) {
     view.slide += dt / 0.45f;
     if (view.slide >= 1) {

@@ -1,6 +1,6 @@
 {
   "name": "bongo-cat-electron",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "Bongo Cat desktop companion (Ross edition): typing cat, CPU/GPU/RAM, temps, date and weather",
   "main": "main.js",
   "scripts": {

@@ -202,9 +202,10 @@ dialog .row2 .go{margin-top:0}
       <div class="row"><div class="t">FOCUS CARD<span>TIMER WITH A START BUTTON</span></div><button class="sw" id="showFocusCard"></button></div>
       <div class="row" style="display:block">
         <div class="lbl">SWITCH EVERY <span id="cycleV"></span></div>
-        <div class="seg" style="grid-template-columns:repeat(4,1fr)" id="cycleSec">
-          <button data-v="5">5S</button><button data-v="8">8S</button><button data-v="15">15S</button><button data-v="30">30S</button>
+        <div class="seg" style="grid-template-columns:repeat(5,1fr)" id="cycleSec">
+          <button data-v="5">5S</button><button data-v="8">8S</button><button data-v="15">15S</button><button data-v="30">30S</button><button data-v="0">OFF</button>
         </div>
+        <div class="hint">OFF: THE CARD STAYS PUT. TAP ITS LEFT OR RIGHT HALF TO SWITCH.</div>
       </div>
     </div>
     <div class="box">
@@ -421,7 +422,7 @@ function render() {
   const seg10 = Math.round((S.brightness - 10) * 10 / 245);
   [...$('blocks').children].forEach((el, i) => el.className = i < seg10 ? 'on' : '');
   $('brightV').textContent = Math.round(S.brightness * 100 / 255) + '%';
-  $('cycleV').textContent = S.cycleSec + 'S';
+  $('cycleV').textContent = S.cycleSec ? S.cycleSec + 'S' : 'OFF';
   $('sleepV').textContent = S.sleepTimeout + 'M';
   seg('cycleSec', S.cycleSec);
   seg('sleepTimeout', S.sleepTimeout);

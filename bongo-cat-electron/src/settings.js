@@ -54,7 +54,7 @@ class SettingsManager {
                 coat: { type: 'string', enum: ['white', 'black', 'grey', 'orange', 'calico', 'tuxedo', 'siamese', 'cream'], default: 'white' },
                 catName: { type: 'string', default: '' },
                 brightness: { type: 'number', minimum: 10, maximum: 255, default: 200 },
-                cycleSec: { type: 'number', minimum: 3, maximum: 60, default: 8 },
+                cycleSec: { type: 'number', minimum: 0, maximum: 60, default: 8 },  // 0 = cards don't switch by themselves
                 showWeatherCard: { type: 'boolean', default: true },
                 showPcCard: { type: 'boolean', default: true },
                 showFocusCard: { type: 'boolean', default: true },

@@ -10,7 +10,7 @@ const RULES = {
     coat: v => COATS.includes(v) ? v : undefined,
     catName: v => typeof v === 'string' ? cleanName(v) : undefined,
     brightness: v => int(v, 10, 255),
-    cycleSec: v => int(v, 3, 60),
+    cycleSec: v => cycle(v),  // seconds per card, 0 = off (cards only change on a tap)
     showWeatherCard: v => typeof v === 'boolean' ? v : undefined,
     showPcCard: v => typeof v === 'boolean' ? v : undefined,
     showFocusCard: v => typeof v === 'boolean' ? v : undefined,
@@ -25,6 +25,11 @@ const RULES = {
     focusMin: v => int(v, 5, 120),
     wear: v => int(v, 0, 31),  // wardrobe bits: 1 band, 2 headset, 4 crown, 8 cape, 16 RGB keyboard
 };
+
+function cycle(v) {
+    const n = int(v, 0, 60);
+    return n === undefined ? undefined : (n < 3 ? 0 : n);
+}
 
 function int(v, lo, hi) {
     const n = Math.round(Number(v));
@@ -56,7 +61,7 @@ function setLine(s) {
         `coat=${COATS.includes(s.coat) ? s.coat : 'white'}`,
         `name=${cleanName(s.catName || '')}`,
         `bright=${int(s.brightness, 10, 255) ?? 200}`,
-        `cycle=${int(s.cycleSec, 3, 60) ?? 8}`,
+        `cycle=${cycle(s.cycleSec) ?? 8}`,
         `cards=${cards}`,
         `h24=${s.timeFormat === '24' ? 1 : 0}`,
         `sleep=${int(s.sleepTimeout, 1, 60) ?? 5}`,
